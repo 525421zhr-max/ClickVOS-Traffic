@@ -1,0 +1,1 @@
+"""ClickVOS application package."""

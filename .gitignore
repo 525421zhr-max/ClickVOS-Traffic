@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# IDE and OS
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Large or generated artifacts
+models/*
+data/raw/*
+data/processed/*
+outputs/videos/*
+outputs/masks/*
+logs/*
+*.pt
+*.pth
+*.ckpt
+*.mp4
+*.mov
+*.avi
+
+# Keep directory placeholders
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!models/.gitkeep
+!outputs/videos/.gitkeep
+!outputs/masks/.gitkeep
+!logs/.gitkeep
