@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .venv/
 venv/
@@ -22,6 +23,9 @@ data/raw/*
 data/processed/*
 outputs/videos/*
 outputs/masks/*
+outputs/cp01/
+outputs/cp02/
+outputs/tasks/
 logs/*
 *.pt
 *.pth

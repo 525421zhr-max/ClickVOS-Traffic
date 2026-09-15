@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=78"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clickvos-traffic"
+version = "0.1.0"
+description = "Interactive traffic video segmentation and annotation with SAM2"
+requires-python = ">=3.12"
+
+[project.scripts]
+clickvos-video = "clickvos.video_io:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
