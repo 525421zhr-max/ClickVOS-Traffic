@@ -12,14 +12,17 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
+from clickvos.config import load_config
+from clickvos.errors import ClickVOSError, ErrorCode
+
 
 SUPPORTED_VIDEO_SUFFIXES = frozenset({".mp4", ".mov", ".avi", ".mkv", ".webm"})
 DEFAULT_MAX_VIDEO_BYTES = 200 * 1024 * 1024
 TASK_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 
 
-class VideoIOError(RuntimeError):
-    """Raised when a video cannot be validated, inspected, or extracted."""
+class VideoIOError(ClickVOSError):
+    """Backward-compatible typed error for video input failures."""
 
 
 @dataclass(frozen=True)
@@ -59,15 +62,15 @@ class TaskLayout:
 def validate_video(path: Path, max_bytes: int = DEFAULT_MAX_VIDEO_BYTES) -> Path:
     resolved = path.expanduser().resolve()
     if not resolved.is_file():
-        raise VideoIOError(f"video file does not exist: {resolved}")
+        raise VideoIOError(ErrorCode.VIDEO_NOT_FOUND, "找不到视频文件。", str(resolved))
     if resolved.suffix.lower() not in SUPPORTED_VIDEO_SUFFIXES:
         supported = ", ".join(sorted(SUPPORTED_VIDEO_SUFFIXES))
-        raise VideoIOError(f"unsupported video extension {resolved.suffix!r}; expected {supported}")
+        raise VideoIOError(ErrorCode.VIDEO_UNSUPPORTED, "不支持该视频格式。", f"expected {supported}")
     size = resolved.stat().st_size
     if size <= 0:
-        raise VideoIOError(f"video file is empty: {resolved}")
+        raise VideoIOError(ErrorCode.VIDEO_EMPTY, "视频文件为空。", str(resolved))
     if size > max_bytes:
-        raise VideoIOError(f"video is {size} bytes; limit is {max_bytes} bytes")
+        raise VideoIOError(ErrorCode.VIDEO_TOO_LARGE, "视频超过上传大小限制。", f"size={size}, limit={max_bytes}")
     return resolved
 
 
@@ -123,9 +126,9 @@ def probe_video(path: Path, max_bytes: int = DEFAULT_MAX_VIDEO_BYTES) -> VideoMe
             size_bytes=video.stat().st_size,
         )
     except FileNotFoundError as exc:
-        raise VideoIOError("ffprobe was not found; install FFmpeg and add it to PATH") from exc
+        raise VideoIOError(ErrorCode.DEPENDENCY_MISSING, "缺少 FFmpeg，无法读取视频。", "ffprobe not found") from exc
     except (subprocess.CalledProcessError, KeyError, IndexError, ValueError, json.JSONDecodeError) as exc:
-        raise VideoIOError(f"ffprobe could not inspect {video}: {exc}") from exc
+        raise VideoIOError(ErrorCode.VIDEO_INSPECTION_FAILED, "无法读取视频信息，请确认文件未损坏。", str(exc)) from exc
 
 
 def create_task_layout(tasks_root: Path, task_id: str | None = None) -> TaskLayout:
@@ -146,32 +149,43 @@ def create_task_layout(tasks_root: Path, task_id: str | None = None) -> TaskLayo
     return layout
 
 
-def extract_frames(video: Path, frames_dir: Path, quality: int = 2) -> list[Path]:
-    source = validate_video(video)
+def extract_frames(
+    video: Path,
+    frames_dir: Path,
+    quality: int = 2,
+    max_bytes: int = DEFAULT_MAX_VIDEO_BYTES,
+) -> list[Path]:
+    source = validate_video(video, max_bytes=max_bytes)
     if not 2 <= quality <= 31:
         raise ValueError("JPEG quality must be between 2 and 31")
     frames_dir.mkdir(parents=True, exist_ok=True)
     if any(frames_dir.iterdir()):
-        raise VideoIOError(f"frames directory must be empty: {frames_dir}")
+        raise VideoIOError(ErrorCode.TASK_CONFLICT, "任务目录已有抽帧结果，请更换任务编号。", str(frames_dir))
     try:
         subprocess.run(
             ["ffmpeg", "-v", "error", "-i", str(source), "-q:v", str(quality), str(frames_dir / "%05d.jpg")],
             check=True,
         )
     except FileNotFoundError as exc:
-        raise VideoIOError("ffmpeg was not found; install FFmpeg and add it to PATH") from exc
+        raise VideoIOError(ErrorCode.DEPENDENCY_MISSING, "缺少 FFmpeg，无法抽取视频帧。", "ffmpeg not found") from exc
     except subprocess.CalledProcessError as exc:
-        raise VideoIOError(f"ffmpeg could not extract frames from {source}") from exc
+        raise VideoIOError(ErrorCode.FRAME_EXTRACTION_FAILED, "视频抽帧失败，请确认文件可正常播放。", str(source)) from exc
     frames = sorted(frames_dir.glob("*.jpg"))
     if not frames:
-        raise VideoIOError("ffmpeg produced no JPEG frames")
+        raise VideoIOError(ErrorCode.FRAME_EXTRACTION_FAILED, "视频中没有可读取的画面。")
     return frames
 
 
-def prepare_task(video: Path, tasks_root: Path, task_id: str | None = None) -> tuple[TaskLayout, VideoMetadata, list[Path]]:
-    metadata = probe_video(video)
+def prepare_task(
+    video: Path,
+    tasks_root: Path,
+    task_id: str | None = None,
+    max_bytes: int = DEFAULT_MAX_VIDEO_BYTES,
+    quality: int = 2,
+) -> tuple[TaskLayout, VideoMetadata, list[Path]]:
+    metadata = probe_video(video, max_bytes=max_bytes)
     layout = create_task_layout(tasks_root, task_id)
-    frames = extract_frames(video, layout.frames)
+    frames = extract_frames(video, layout.frames, quality=quality, max_bytes=max_bytes)
     record = {
         "schema_version": 1,
         "task_id": layout.root.name,
@@ -185,12 +199,13 @@ def prepare_task(video: Path, tasks_root: Path, task_id: str | None = None) -> t
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Inspect videos and create ClickVOS task directories")
+    parser.add_argument("--config", type=Path, default=Path("configs/default.json"))
     subparsers = parser.add_subparsers(dest="command", required=True)
     inspect_parser = subparsers.add_parser("inspect", help="print video metadata as JSON")
     inspect_parser.add_argument("video", type=Path)
     prepare_parser = subparsers.add_parser("prepare", help="create a task and extract JPEG frames")
     prepare_parser.add_argument("video", type=Path)
-    prepare_parser.add_argument("--tasks-root", required=True, type=Path)
+    prepare_parser.add_argument("--tasks-root", type=Path)
     prepare_parser.add_argument("--task-id")
     return parser
 
@@ -198,10 +213,17 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> None:
     args = _build_parser().parse_args(argv)
     try:
+        config = load_config(args.config)
         if args.command == "inspect":
-            result = asdict(probe_video(args.video))
+            result = asdict(probe_video(args.video, max_bytes=config.video.max_upload_bytes))
         else:
-            layout, metadata, frames = prepare_task(args.video, args.tasks_root, args.task_id)
+            layout, metadata, frames = prepare_task(
+                args.video,
+                args.tasks_root or config.tasks_root,
+                args.task_id,
+                max_bytes=config.video.max_upload_bytes,
+                quality=config.video.jpeg_quality,
+            )
             result = {
                 "task_directory": str(layout.root),
                 "metadata": asdict(metadata),

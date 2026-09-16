@@ -65,3 +65,11 @@ pytest
 ```
 
 `prepare` 会创建独立的 `frames/`、`masks/`、`overlays/` 和 `exports/` 目录，并把视频元数据写入 `task.json`。为避免混合不同运行结果，已有非空抽帧目录不会被覆盖。
+
+默认限制、SAM2 路径与三类交通对象定义集中在 `configs/default.json`。命令行可通过全局参数 `--config` 指定其他配置，例如：
+
+```bash
+python -m clickvos.video_io --config configs/default.json inspect sample.mp4
+```
+
+界面与命令行使用稳定错误代码；终端用户看到中文提示，日志可保留不含隐私的技术细节。

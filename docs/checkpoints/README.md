@@ -31,4 +31,5 @@
 ## 周记录
 
 - [W01：视频输入工程底座](W01-video-input-foundation.md)（2026-09-15 提前完成）
+- [W02：配置、错误模型与素材候选](W02-config-errors-and-sources.md)（2026-09-16 提前完成）
 - 新一周从 [周记录模板](WEEKLY-TEMPLATE.md) 复制，实际结果必须来自命令输出或原始记录。

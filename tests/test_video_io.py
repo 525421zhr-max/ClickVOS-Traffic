@@ -7,14 +7,17 @@ from unittest.mock import patch
 
 import pytest
 
+from clickvos.errors import ErrorCode
 from clickvos.video_io import VideoIOError, create_task_layout, probe_video, validate_video
 
 
 def test_validate_video_rejects_unknown_extension(tmp_path: Path) -> None:
     file = tmp_path / "sample.txt"
     file.write_bytes(b"not a video")
-    with pytest.raises(VideoIOError, match="unsupported video extension"):
+    with pytest.raises(VideoIOError) as captured:
         validate_video(file)
+    assert captured.value.code == ErrorCode.VIDEO_UNSUPPORTED
+    assert captured.value.user_message == "不支持该视频格式。"
 
 
 def test_create_task_layout_creates_expected_directories(tmp_path: Path) -> None:
@@ -49,4 +52,3 @@ def test_probe_video_parses_ffprobe_json(tmp_path: Path) -> None:
     assert (metadata.width, metadata.height, metadata.fps) == (960, 540, 10.0)
     assert metadata.frame_count == 50
     assert metadata.duration_seconds == 5.0
-

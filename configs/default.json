@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "video": {
+    "max_upload_bytes": 209715200,
+    "frame_format": "jpg",
+    "jpeg_quality": 2
+  },
+  "task": {
+    "tasks_root": "outputs/tasks"
+  },
+  "model": {
+    "name": "sam2.1_hiera_tiny",
+    "config": "configs/sam2.1/sam2.1_hiera_t.yaml",
+    "checkpoint_sha256": "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69",
+    "device": "cuda",
+    "offload_video_to_cpu": true,
+    "offload_state_to_cpu": true
+  },
+  "categories": [
+    {"id": 1, "key": "vehicle", "label_zh": "车辆"},
+    {"id": 2, "key": "pedestrian", "label_zh": "行人"},
+    {"id": 3, "key": "non_motorized", "label_zh": "非机动车"}
+  ]
+}
