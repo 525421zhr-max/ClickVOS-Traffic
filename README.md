@@ -73,3 +73,18 @@ python -m clickvos.video_io --config configs/default.json inspect sample.mp4
 ```
 
 界面与命令行使用稳定错误代码；终端用户看到中文提示，日志可保留不含隐私的技术细节。
+
+## 推理、异常检查与预览导出
+
+单目标传播脚本已经调用可复用的 `Sam2Engine`。一次运行结束后可生成异常报告和 MP4：
+
+```bash
+python scripts/run_sam2_video.py --video sample.mp4 --checkpoint /path/model.pt \
+  --output outputs/tasks/demo --positive 520,370 --category vehicle
+python -m clickvos.anomaly outputs/tasks/demo/result.json \
+  --output outputs/tasks/demo/anomalies.json
+python -m clickvos.export outputs/tasks/demo/overlays \
+  outputs/tasks/demo/preview.mp4 --fps 10
+```
+
+异常规则目前只把“目标连续消失后重新激活”标为待复核，不能替代用户确认或身份识别证据。
