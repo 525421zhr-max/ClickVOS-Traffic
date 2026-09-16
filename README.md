@@ -88,3 +88,13 @@ python -m clickvos.export outputs/tasks/demo/overlays \
 ```
 
 异常规则目前只把“目标连续消失后重新激活”标为待复核，不能替代用户确认或身份识别证据。
+
+## 本地 Web 界面
+
+```bash
+python -m pip install -r requirements-app.txt
+export CLICKVOS_CHECKPOINT=/absolute/path/to/sam2.1_hiera_tiny.pt
+python -m clickvos.web_app
+```
+
+浏览器访问 `http://127.0.0.1:7860`，可上传视频、抽帧、在首帧添加正负点、运行传播，并查看 MP4 与异常报告。当前页面完成单目标闭环；多对象和中间帧修正已具备引擎会话接口，界面交互将在下一轮接入。

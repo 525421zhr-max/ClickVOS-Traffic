@@ -7,7 +7,7 @@ import time
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Iterator, Protocol
 
 import numpy as np
 import torch
@@ -63,6 +63,22 @@ class PropagationResult:
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class FramePrediction:
+    frame_index: int
+    object_ids: tuple[int, ...]
+    masks: tuple[np.ndarray, ...]
+
+
+def logits_to_masks(logits: torch.Tensor) -> tuple[np.ndarray, ...]:
+    values = (logits > 0).detach().cpu().numpy()
+    if values.ndim == 4 and values.shape[1] == 1:
+        values = values[:, 0]
+    if values.ndim != 3:
+        raise ValueError(f"expected object masks shaped NxHxW, got {values.shape}")
+    return tuple(values[index].astype(bool) for index in range(values.shape[0]))
 
 
 def file_sha256(path: Path) -> str:
@@ -124,6 +140,9 @@ class Sam2Engine:
         started = time.perf_counter()
         predictor = predictor_factory(config.model.config, str(checkpoint), device=config.model.device)
         return cls(config, predictor), time.perf_counter() - started
+
+    def start_session(self, frames: list[Path]) -> "Sam2Session":
+        return Sam2Session(self.config, self.predictor, frames)
 
     def propagate_single(
         self,
@@ -200,3 +219,76 @@ class Sam2Engine:
             inference_seconds=elapsed,
             peak_cuda_memory_bytes=peak_memory,
         )
+
+
+class Sam2Session:
+    """Stateful multi-object session supporting prompts on later correction frames."""
+
+    def __init__(self, config: AppConfig, predictor: Predictor, frames: list[Path]) -> None:
+        if not frames:
+            raise ValueError("frames must not be empty")
+        self.config = config
+        self.predictor = predictor
+        self.frames = frames
+        with Image.open(frames[0]) as first_frame:
+            self.width, self.height = first_frame.size
+        self.state = predictor.init_state(
+            str(frames[0].parent),
+            offload_video_to_cpu=config.model.offload_video_to_cpu,
+            offload_state_to_cpu=config.model.offload_state_to_cpu,
+        )
+        self.objects: dict[int, str] = {}
+
+    def _autocast(self) -> Any:
+        if self.config.model.device == "cuda":
+            return torch.autocast("cuda", dtype=torch.bfloat16)
+        return nullcontext()
+
+    def add_prompt(self, prompt: ObjectPrompt, clear_old_points: bool = True) -> FramePrediction:
+        prompt.validate(
+            self.width,
+            self.height,
+            {category.key for category in self.config.categories},
+        )
+        if prompt.frame_index >= len(self.frames):
+            raise ValueError("prompt frame is outside the extracted frame sequence")
+        existing_category = self.objects.get(prompt.object_id)
+        if existing_category is not None and existing_category != prompt.category:
+            raise ValueError("an object category cannot change within a task")
+        points = np.asarray([(point.x, point.y) for point in prompt.points], dtype=np.float32)
+        labels = np.asarray([1 if point.positive else 0 for point in prompt.points], dtype=np.int32)
+        with self._autocast():
+            _, object_ids, logits = self.predictor.add_new_points_or_box(
+                self.state,
+                frame_idx=prompt.frame_index,
+                obj_id=prompt.object_id,
+                points=points,
+                labels=labels,
+                clear_old_points=clear_old_points,
+            )
+        ids = tuple(int(item) for item in object_ids)
+        self.objects[prompt.object_id] = prompt.category
+        return FramePrediction(prompt.frame_index, ids, logits_to_masks(logits))
+
+    def propagate(
+        self,
+        start_frame_idx: int | None = None,
+        max_frame_num_to_track: int | None = None,
+        reverse: bool = False,
+    ) -> Iterator[FramePrediction]:
+        if not self.objects:
+            raise ValueError("add at least one object prompt before propagation")
+        if start_frame_idx is not None and not 0 <= start_frame_idx < len(self.frames):
+            raise ValueError("start_frame_idx is outside the frame sequence")
+        with self._autocast():
+            for frame_index, object_ids, logits in self.predictor.propagate_in_video(
+                self.state,
+                start_frame_idx=start_frame_idx,
+                max_frame_num_to_track=max_frame_num_to_track,
+                reverse=reverse,
+            ):
+                ids = tuple(int(item) for item in object_ids)
+                masks = logits_to_masks(logits)
+                if len(ids) != len(masks):
+                    raise RuntimeError("predictor returned different object ID and mask counts")
+                yield FramePrediction(int(frame_index), ids, masks)
