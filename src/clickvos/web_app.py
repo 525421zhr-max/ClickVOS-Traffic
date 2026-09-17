@@ -23,7 +23,7 @@ import numpy as np
 from clickvos.anomaly import ReactivationGuard, detect_fragmentation, detect_reactivation
 from clickvos.config import AppConfig, load_config
 from clickvos.errors import ClickVOSError
-from clickvos.export import build_preview_video
+from clickvos.export import build_annotation_bundle, build_preview_video
 from clickvos.mask_processing import keep_largest_component, mask_boundary
 from clickvos.sam2_engine import (
     ObjectPrompt,
@@ -362,6 +362,8 @@ def _runtime_report(runtime: dict[str, Any]) -> dict[str, Any]:
         "guarded_frames": guarded_frames,
         "model_load_seconds": runtime["model_load_seconds"],
         "initial_inference_seconds": runtime["initial_inference_seconds"],
+        "peak_cuda_memory_bytes": runtime["peak_cuda_memory_bytes"],
+        "model": runtime["model"],
         "corrections": runtime["corrections"],
         "anomaly_count": len(anomalies),
         "anomalies": anomalies,
@@ -411,6 +413,8 @@ def _run_multi_segmentation(
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
         engine, load_seconds = Sam2Engine.load(config, Path(checkpoint_path))
+        if config.model.device == "cuda":
+            torch.cuda.reset_peak_memory_stats()
         frames = [Path(frame) for frame in task_state["frames"]]
         task_root = Path(task_state["task_root"])
         session = engine.start_session(frames)
@@ -448,6 +452,14 @@ def _run_multi_segmentation(
             "fps": task_state["fps"],
             "keep_largest": keep_largest,
             "model_load_seconds": load_seconds,
+            "model": {
+                "name": config.model.name,
+                "config": config.model.config,
+                "checkpoint_sha256": config.model.checkpoint_sha256,
+                "device": config.model.device,
+                "offload_video_to_cpu": config.model.offload_video_to_cpu,
+                "offload_state_to_cpu": config.model.offload_state_to_cpu,
+            },
             "objects": object_runtimes,
             "corrections": [],
             "guard_reactivation": guard_reactivation,
@@ -456,6 +468,9 @@ def _run_multi_segmentation(
         for prediction in session.propagate():
             _save_runtime_prediction(runtime, prediction)
         runtime["initial_inference_seconds"] = time.perf_counter() - started
+        runtime["peak_cuda_memory_bytes"] = (
+            int(torch.cuda.max_memory_allocated()) if config.model.device == "cuda" else None
+        )
         preview, report = _write_runtime_outputs(runtime)
         session_key = task_root.name
         with _SESSION_LOCK:
@@ -485,6 +500,20 @@ def _run_segmentation(
     return _run_multi_segmentation(
         task_state, objects, checkpoint_path, config_path, keep_largest, guard_reactivation
     )
+
+
+def _export_active_task(session_key: str | None) -> tuple[str, str]:
+    if not session_key:
+        raise gr.Error("请先运行视频传播。")
+    with _SESSION_LOCK:
+        runtime = _ACTIVE_SESSIONS.get(session_key)
+    if runtime is None:
+        raise gr.Error("当前任务状态已释放，请重新运行传播。")
+    try:
+        bundle = build_annotation_bundle(runtime["task_root"])
+        return str(bundle), f"标注包已生成：{bundle.name}"
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
 
 
 def _load_correction_frame(
@@ -633,6 +662,9 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
         with gr.Row():
             preview = gr.Video(label="分割预览")
             report = gr.JSON(label="运行结果与异常")
+        with gr.Row():
+            export_bundle = gr.Button("生成标注下载包", variant="primary")
+            download = gr.File(label="标注结果包（ZIP）", interactive=False)
         with gr.Accordion("4. 中间帧修正", open=True):
             gr.Markdown(
                 "根据异常报告或预览输入帧号，载入该帧后添加正点或负点。"
@@ -692,6 +724,11 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 keep_largest, guard_reactivation,
             ],
             outputs=[preview, report, status, session_key],
+        )
+        export_bundle.click(
+            _export_active_task,
+            inputs=session_key,
+            outputs=[download, status],
         )
         load_correction.click(
             _load_correction_frame,

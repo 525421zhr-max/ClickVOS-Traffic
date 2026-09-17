@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import gradio as gr
@@ -7,8 +8,10 @@ from PIL import Image
 from clickvos.anomaly import ReactivationGuard
 from clickvos.sam2_engine import FramePrediction
 from clickvos.web_app import (
+    _ACTIVE_SESSIONS,
     _add_object,
     _add_object_click,
+    _export_active_task,
     _runtime_report,
     _save_runtime_prediction,
     build_demo,
@@ -25,7 +28,7 @@ def test_gradio_demo_builds_with_expected_title() -> None:
         "交通视频", "目标类别", "分割预览", "运行结果与异常",
         "修正帧号（从 0 开始）", "点击该帧添加修正提示",
         "重新激活保护（目标连续消失 3 帧后暂停可疑掩码）",
-        "当前目标", "目标与提示点统计",
+        "当前目标", "目标与提示点统计", "标注结果包（ZIP）",
     } <= labels
 
 
@@ -62,6 +65,8 @@ def test_runtime_guard_preserves_candidate_and_writes_empty_final_mask(tmp_path:
         "guard_reactivation": True,
         "model_load_seconds": 0.1,
         "initial_inference_seconds": 0.2,
+        "peak_cuda_memory_bytes": None,
+        "model": {"name": "test-model"},
         "corrections": [],
     }
     first_masks = [np.ones((4, 4), dtype=bool)] + [np.zeros((4, 4), dtype=bool)] * 3
@@ -103,3 +108,16 @@ def test_prompt_points_are_kept_separate_for_each_object(tmp_path: Path) -> None
 
     assert objects[0]["points"] == [{"x": 4, "y": 5, "positive": True}]
     assert objects[1]["points"] == [{"x": 15, "y": 12, "positive": False}]
+
+
+def test_web_export_callback_returns_downloadable_bundle(tmp_path: Path) -> None:
+    bundle = tmp_path / "clickvos-task.zip"
+    bundle.write_bytes(b"zip")
+    _ACTIVE_SESSIONS["task"] = {"task_root": tmp_path}
+    try:
+        with patch("clickvos.web_app.build_annotation_bundle", return_value=bundle):
+            path, status = _export_active_task("task")
+    finally:
+        _ACTIVE_SESSIONS.pop("task", None)
+    assert path == str(bundle)
+    assert "标注包已生成" in status

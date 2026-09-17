@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/W09-annotation-export.md",
+  "checkpoint": "W09",
+  "date": "2026-09-17",
+  "status": "engineering_pass",
+  "input": {
+    "source_checkpoint": "W08",
+    "source_id": "traffic-001",
+    "task_id": "9e54b382ef55",
+    "object_count": 2,
+    "frame_count": 50
+  },
+  "measurements": {
+    "zip_bytes": 505211,
+    "zip_entry_count": 103,
+    "png_masks_object_1": 50,
+    "png_masks_object_2": 50,
+    "coco_image_count": 50,
+    "coco_annotation_count": 23,
+    "contains_source_video": false,
+    "contains_extracted_frames": false,
+    "contains_absolute_local_path": false
+  },
+  "conclusion": "The verified two-object task was exported as independent PNG masks, a preview, a ClickVOS project manifest, and COCO uncompressed RLE in one downloadable ZIP.",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "limitations": [
+    "The bundle does not include source frames; COCO image records refer to task frame names.",
+    "Format validation does not establish segmentation accuracy.",
+    "Downstream loading has not yet been tested in a third-party COCO tool."
+  ]
+}

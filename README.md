@@ -107,6 +107,14 @@ python -m clickvos.web_app
 
 传播完成后可在“中间帧修正”区域输入帧号、载入对应画面并添加正负点。应用后，系统保留当前 SAM2 会话并从该帧重新传播到结尾，同时更新预览、异常报告和 `result.json`。当前版本限制为本地单用户、单活动任务；启动新传播会释放上一个会话以控制显存。
 
+传播完成后点击“生成标注下载包”，页面会提供 ZIP 下载。压缩包包含逐对象 PNG 掩码、合成预览视频、ClickVOS 项目 JSON 和 COCO uncompressed RLE JSON；不包含原视频、抽帧图片或本机绝对路径。也可以从命令行导出已有任务：
+
+```bash
+python -m clickvos.export bundle outputs/tasks/<task-id>
+```
+
+格式细节见 [标注导出格式](docs/operations/export-format.md)。
+
 ## GitHub 备份与证据
 
 仓库只备份源码、配置、测试、文档和经过检查点确认的实验摘要。模型权重、原始或处理后视频、逐帧掩码、预览视频、运行日志、密钥和私人素材一律留在本地并由 `.gitignore` 拦截。
@@ -119,5 +127,6 @@ python -m clickvos.web_app
 - [W06 中间帧修正摘要](docs/research/results/w06-midframe-correction.json)
 - [W07 重新激活保护摘要](docs/research/results/w07-reactivation-guard.json)
 - [W08 Web 多目标分割摘要](docs/research/results/w08-web-multi-object.json)
+- [W09 标注导出摘要](docs/research/results/w09-annotation-export.json)
 
 每次推送都会运行轻量仓库检查：解析配置与实验 JSON、检查必需文档、阻止视频或模型权重进入版本控制，并对 Python 源码执行语法编译。完整 GPU/SAM2 回归仍需在项目的 WSL 环境中运行。
