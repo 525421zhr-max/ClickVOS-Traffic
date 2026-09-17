@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import gc
+import shutil
 import threading
 import time
 from dataclasses import asdict
@@ -17,7 +18,9 @@ import gradio as gr
 import torch
 from PIL import Image, ImageDraw
 
-from clickvos.anomaly import detect_fragmentation, detect_reactivation
+import numpy as np
+
+from clickvos.anomaly import ReactivationGuard, detect_fragmentation, detect_reactivation
 from clickvos.config import AppConfig, load_config
 from clickvos.errors import ClickVOSError
 from clickvos.export import build_preview_video
@@ -82,7 +85,12 @@ def _clear_clicks(image_path: str | None) -> tuple[str | None, list[Any], list[A
     return image_path, [], []
 
 
-def _save_runtime_prediction(runtime: dict[str, Any], prediction: Any) -> None:
+def _save_runtime_prediction(
+    runtime: dict[str, Any],
+    prediction: Any,
+    *,
+    update_guard: bool = True,
+) -> None:
     try:
         object_index = prediction.object_ids.index(1)
     except ValueError as exc:
@@ -96,14 +104,43 @@ def _save_runtime_prediction(runtime: dict[str, Any], prediction: Any) -> None:
         runtime["task_root"] / "overlays" / f"{stem}.jpg",
         runtime["keep_largest"],
     )
+    runtime["model_mask_foreground_pixels"][f"{stem}.png"] = saved
+    runtime["model_mask_component_counts"][f"{stem}.png"] = components
+    if update_guard and runtime.get("reactivation_guard") is not None:
+        confirmed = frame_index in runtime.get("guard_confirmed_frames", set())
+        decision = runtime["reactivation_guard"].observe(frame_index, saved, confirmed=confirmed)
+        if decision.suppress:
+            candidate_masks = runtime["task_root"] / "review_candidates" / "masks"
+            candidate_overlays = runtime["task_root"] / "review_candidates" / "overlays"
+            candidate_masks.mkdir(parents=True, exist_ok=True)
+            candidate_overlays.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(runtime["task_root"] / "masks" / f"{stem}.png", candidate_masks / f"{stem}.png")
+            shutil.copy2(runtime["task_root"] / "overlays" / f"{stem}.jpg", candidate_overlays / f"{stem}.jpg")
+            save_boolean_mask_and_overlay(
+                np.zeros_like(prediction.masks[object_index], dtype=bool),
+                runtime["frames"][frame_index],
+                runtime["task_root"] / "masks" / f"{stem}.png",
+                runtime["task_root"] / "overlays" / f"{stem}.jpg",
+                False,
+            )
+            saved = 0
+            components = 0
+            runtime["guarded_frames"].append(
+                {
+                    "frame_index": frame_index,
+                    "candidate_pixels": runtime["model_mask_foreground_pixels"][f"{stem}.png"],
+                    "triggered_guard": decision.triggered,
+                    "preceding_empty_frames": decision.empty_frame_count,
+                }
+            )
     runtime["mask_foreground_pixels"][f"{stem}.png"] = saved
     runtime["raw_mask_foreground_pixels"][f"{stem}.png"] = raw
     runtime["mask_component_counts"][f"{stem}.png"] = components
 
 
 def _runtime_report(runtime: dict[str, Any]) -> dict[str, Any]:
-    anomaly_items = detect_reactivation(runtime["mask_foreground_pixels"])
-    anomaly_items.extend(detect_fragmentation(runtime["mask_component_counts"]))
+    anomaly_items = detect_reactivation(runtime["model_mask_foreground_pixels"])
+    anomaly_items.extend(detect_fragmentation(runtime["model_mask_component_counts"]))
     anomalies = [asdict(item) for item in anomaly_items]
     return {
         "object_id": 1,
@@ -111,8 +148,13 @@ def _runtime_report(runtime: dict[str, Any]) -> dict[str, Any]:
         "frame_count": len(runtime["frames"]),
         "postprocessing": "largest_connected_component" if runtime["keep_largest"] else "none",
         "mask_foreground_pixels": runtime["mask_foreground_pixels"],
+        "model_mask_foreground_pixels": runtime["model_mask_foreground_pixels"],
         "raw_mask_foreground_pixels": runtime["raw_mask_foreground_pixels"],
         "mask_component_counts": runtime["mask_component_counts"],
+        "model_mask_component_counts": runtime["model_mask_component_counts"],
+        "reactivation_guard_enabled": runtime["reactivation_guard"] is not None,
+        "reactivation_guard_minimum_empty_frames": 3,
+        "guarded_frames": runtime["guarded_frames"],
         "model_load_seconds": runtime["model_load_seconds"],
         "initial_inference_seconds": runtime["initial_inference_seconds"],
         "corrections": runtime["corrections"],
@@ -141,6 +183,7 @@ def _run_segmentation(
     checkpoint_path: str,
     config_path: str,
     keep_largest: bool,
+    guard_reactivation: bool,
 ) -> tuple[str, dict[str, Any], str, str]:
     if not task_state:
         raise gr.Error("请先上传并解析视频。")
@@ -175,9 +218,14 @@ def _run_segmentation(
             "keep_largest": keep_largest,
             "model_load_seconds": load_seconds,
             "mask_foreground_pixels": {},
+            "model_mask_foreground_pixels": {},
             "raw_mask_foreground_pixels": {},
             "mask_component_counts": {},
+            "model_mask_component_counts": {},
             "corrections": [],
+            "reactivation_guard": ReactivationGuard(3) if guard_reactivation else None,
+            "guarded_frames": [],
+            "guard_confirmed_frames": set(),
         }
         started = time.perf_counter()
         for prediction in session.propagate():
@@ -189,6 +237,7 @@ def _run_segmentation(
             _ACTIVE_SESSIONS[session_key] = runtime
         status = (
             f"传播完成：{len(frames)} 帧，发现 {report['anomaly_count']} 个待复核异常。"
+            f"重新激活保护抑制 {len(report['guarded_frames'])} 帧。"
             "可在下方输入帧号进行修正。"
         )
         return preview, report, status, session_key
@@ -227,6 +276,18 @@ def _apply_correction(
     if not 0 <= index < len(runtime["frames"]):
         raise gr.Error("修正帧号超出范围。")
     try:
+        if runtime.get("reactivation_guard") is not None:
+            runtime["reactivation_guard"] = ReactivationGuard(3)
+            runtime["guarded_frames"] = [
+                item for item in runtime["guarded_frames"] if item["frame_index"] < index
+            ]
+            for prior_index in range(index):
+                name = f"{prior_index:05d}.png"
+                count = runtime["model_mask_foreground_pixels"].get(name, 0)
+                runtime["reactivation_guard"].observe(prior_index, count)
+            runtime["guard_confirmed_frames"] = (
+                {index} if any(item["positive"] for item in prompts) else set()
+            )
         correction = ObjectPrompt(
             object_id=1,
             category=runtime["category"],
@@ -243,7 +304,7 @@ def _apply_correction(
             updated += 1
         # SAM2 returns the user-corrected mask immediately. Preserve that exact mask on
         # the correction frame even if the propagation iterator yields a cached frame.
-        _save_runtime_prediction(runtime, immediate_prediction)
+        _save_runtime_prediction(runtime, immediate_prediction, update_guard=False)
         elapsed = time.perf_counter() - started
         runtime["corrections"].append(
             {
@@ -295,6 +356,10 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                     value=True,
                     label="只保留最大连通区域（减少不相连的串目标）",
                 )
+                guard_reactivation = gr.Checkbox(
+                    value=True,
+                    label="重新激活保护（目标连续消失 3 帧后暂停可疑掩码）",
+                )
                 prompt_table = gr.JSON(label="提示点")
                 clear = gr.Button("清空提示点")
         run = gr.Button("3. 运行 SAM2 传播", variant="primary")
@@ -305,7 +370,9 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
         with gr.Accordion("4. 中间帧修正", open=True):
             gr.Markdown(
                 "根据异常报告或预览输入帧号，载入该帧后添加正点或负点。"
-                "修正会从该帧重新传播到视频结尾。"
+                "修正会从该帧重新传播到视频结尾。重新激活保护开启时，"
+                "被抑制的 SAM2 候选掩码保存在任务目录的 review_candidates 中供核查；"
+                "正点表示确认目标重新出现，负点则继续保持拦截。"
             )
             with gr.Row():
                 correction_index = gr.Number(value=0, precision=0, minimum=0, label="修正帧号（从 0 开始）")
@@ -336,7 +403,10 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
         )
         run.click(
             _run_segmentation,
-            inputs=[task_state, prompt_state, category, checkpoint, config_value, keep_largest],
+            inputs=[
+                task_state, prompt_state, category, checkpoint, config_value,
+                keep_largest, guard_reactivation,
+            ],
             outputs=[preview, report, status, session_key],
         )
         load_correction.click(

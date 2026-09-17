@@ -18,6 +18,63 @@ class Anomaly:
     evidence: dict[str, int | float]
 
 
+@dataclass(frozen=True)
+class GuardDecision:
+    frame_index: int
+    suppress: bool
+    triggered: bool
+    empty_frame_count: int
+
+
+class ReactivationGuard:
+    """Suppress unconfirmed masks after a target has been absent for several frames."""
+
+    def __init__(self, minimum_empty_frames: int = 3) -> None:
+        if minimum_empty_frames < 1:
+            raise ValueError("minimum_empty_frames must be at least 1")
+        self.minimum_empty_frames = minimum_empty_frames
+        self._last_frame: int | None = None
+        self._previously_visible = False
+        self._empty_started: int | None = None
+        self._blocked = False
+
+    def observe(self, frame_index: int, pixel_count: int, confirmed: bool = False) -> GuardDecision:
+        if frame_index < 0 or pixel_count < 0:
+            raise ValueError("frame_index and pixel_count must not be negative")
+        if self._last_frame is not None and frame_index <= self._last_frame:
+            raise ValueError("frames must be observed in strictly increasing order")
+        self._last_frame = frame_index
+        if confirmed:
+            self._blocked = False
+            self._previously_visible = pixel_count > 0
+            self._empty_started = None if pixel_count > 0 else frame_index
+            return GuardDecision(frame_index, False, False, 0)
+
+        empty_count = 0 if self._empty_started is None else frame_index - self._empty_started
+        triggered = False
+        if pixel_count > 0:
+            if (
+                not self._blocked
+                and self._previously_visible
+                and self._empty_started is not None
+                and empty_count >= self.minimum_empty_frames
+            ):
+                self._blocked = True
+                triggered = True
+            if not self._blocked:
+                self._previously_visible = True
+                self._empty_started = None
+        elif self._previously_visible and self._empty_started is None:
+            self._empty_started = frame_index
+
+        return GuardDecision(
+            frame_index=frame_index,
+            suppress=self._blocked and pixel_count > 0,
+            triggered=triggered,
+            empty_frame_count=empty_count,
+        )
+
+
 def detect_reactivation(
     pixel_counts: Mapping[str, int],
     minimum_empty_frames: int = 3,

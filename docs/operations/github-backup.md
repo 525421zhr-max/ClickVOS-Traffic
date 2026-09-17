@@ -1,6 +1,6 @@
 # GitHub 备份与上传规则
 
-远程仓库：`https://github.com/525421zhr-max/ClickVOS-Traffic`（当前保持私有）。
+远程仓库：`https://github.com/525421zhr-max/ClickVOS-Traffic`（2026-09-17 已由用户改为公开）。仓库暂未附加开源许可证，后续结合软件著作权安排决定许可方式。
 
 ## 上传内容
 

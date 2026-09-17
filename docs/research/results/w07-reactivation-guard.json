@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/W07-reactivation-guard.md",
+  "checkpoint": "W07",
+  "date": "2026-09-17",
+  "status": "engineering_pass_single_case",
+  "input": {
+    "source_id": "traffic-001",
+    "frames": 50,
+    "initial_positive_point": [520, 370],
+    "largest_component_filter": true,
+    "reactivation_guard_minimum_empty_frames": 3
+  },
+  "measurements": {
+    "model_load_seconds": 1.1652379810000184,
+    "initial_inference_seconds": 5.4337703769999735,
+    "model_pixels_frames_46_to_49": [1533, 1743, 1915, 1916],
+    "final_pixels_frames_46_to_49": [0, 0, 0, 0],
+    "guard_trigger_frame": 46,
+    "preceding_empty_frames": 30,
+    "guarded_frame_count": 4,
+    "preview_bytes": 464711,
+    "candidate_frame_46_mask_bytes": 903,
+    "final_frame_46_mask_bytes": 583
+  },
+  "conclusion": "The guard preserved the SAM2 candidates for review while preventing the documented frame-46 identity drift from entering final masks.",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "limitations": [
+    "Validated on one documented vehicle reactivation case only.",
+    "No frame-level ground truth; IoU, J and F were not calculated.",
+    "A fixed three-frame threshold may suppress a genuine target returning after occlusion."
+  ]
+}

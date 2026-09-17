@@ -1,4 +1,4 @@
-"""Exercise the same initial-run and correction callbacks used by the Web UI."""
+"""Run the Web reactivation guard against the registered CP-02 regression video."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from clickvos.web_app import _apply_correction, _prepare_video, _run_segmentation
+from clickvos.web_app import _prepare_video, _run_segmentation
 
 
 def main() -> None:
@@ -17,28 +17,29 @@ def main() -> None:
     args = parser.parse_args()
 
     _, task_state, _, _ = _prepare_video(args.video, "configs/default.json")
-    _, initial_report, _, session_key = _run_segmentation(
+    _, report, status, _ = _run_segmentation(
         task_state,
         [{"x": 520, "y": 370, "positive": True}],
         "vehicle",
         args.checkpoint,
         "configs/default.json",
         True,
-        False,
+        True,
     )
-    initial_pixels = initial_report["mask_foreground_pixels"]["00046.png"]
-    _, corrected_report, status, _, _, _ = _apply_correction(
-        session_key,
-        46,
-        [{"x": 480, "y": 350, "positive": False}],
-    )
+    names = [f"{index:05d}.png" for index in range(46, 50)]
     summary = {
         "task_root": task_state["task_root"],
-        "correction_frame": 46,
-        "correction_prompt": {"x": 480, "y": 350, "positive": False},
-        "pixels_before": initial_pixels,
-        "pixels_after": corrected_report["mask_foreground_pixels"]["00046.png"],
-        "correction_count": len(corrected_report["corrections"]),
+        "source_id": "traffic-001",
+        "reactivation_guard_enabled": report["reactivation_guard_enabled"],
+        "minimum_empty_frames": report["reactivation_guard_minimum_empty_frames"],
+        "model_pixels_frames_46_to_49": [
+            report["model_mask_foreground_pixels"][name] for name in names
+        ],
+        "final_pixels_frames_46_to_49": [
+            report["mask_foreground_pixels"][name] for name in names
+        ],
+        "guarded_frames": report["guarded_frames"],
+        "anomalies": report["anomalies"],
         "status": status,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

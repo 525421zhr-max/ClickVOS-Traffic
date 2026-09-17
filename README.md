@@ -89,6 +89,8 @@ python -m clickvos.export outputs/tasks/demo/overlays \
 
 异常规则目前只把“目标连续消失后重新激活”标为待复核，不能替代用户确认或身份识别证据。
 
+Web 默认启用“重新激活保护”：目标连续消失 3 帧后，后续突然出现的候选掩码不会直接进入最终结果，而是暂停并保存到任务目录的 `review_candidates/` 供用户核查。该规则已在 CP-02 第 46 帧错误重识别案例上完成真实 GPU 回归；它是保守的人工复核机制，不是身份识别模型。
+
 ## 本地 Web 界面
 
 ```bash
@@ -107,9 +109,12 @@ python -m clickvos.web_app
 
 仓库只备份源码、配置、测试、文档和经过检查点确认的实验摘要。模型权重、原始或处理后视频、逐帧掩码、预览视频、运行日志、密钥和私人素材一律留在本地并由 `.gitignore` 拦截。
 
+仓库当前公开用于项目展示和过程留痕，但尚未附加开源许可证；公开可见不表示授予复制、修改或再发布许可。后续会结合软件著作权安排再决定许可方式。
+
 - [GitHub 备份规则](docs/operations/github-backup.md)
 - [CP-02 基线摘要](docs/research/results/cp02-baseline.json)
 - [W05 掩码质量小试验摘要](docs/research/results/w05-mask-quality-pilot.json)
 - [W06 中间帧修正摘要](docs/research/results/w06-midframe-correction.json)
+- [W07 重新激活保护摘要](docs/research/results/w07-reactivation-guard.json)
 
 每次推送都会运行轻量仓库检查：解析配置与实验 JSON、检查必需文档、阻止视频或模型权重进入版本控制，并对 Python 源码执行语法编译。完整 GPU/SAM2 回归仍需在项目的 WSL 环境中运行。
