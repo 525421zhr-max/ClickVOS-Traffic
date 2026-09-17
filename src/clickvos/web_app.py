@@ -24,17 +24,26 @@ from clickvos.anomaly import ReactivationGuard, detect_fragmentation, detect_rea
 from clickvos.config import AppConfig, load_config
 from clickvos.errors import ClickVOSError
 from clickvos.export import build_preview_video
+from clickvos.mask_processing import keep_largest_component, mask_boundary
 from clickvos.sam2_engine import (
     ObjectPrompt,
     PromptPoint,
     Sam2Engine,
-    save_boolean_mask_and_overlay,
 )
 from clickvos.video_io import prepare_task
 
 
 _ACTIVE_SESSIONS: dict[str, dict[str, Any]] = {}
 _SESSION_LOCK = threading.Lock()
+
+OBJECT_COLORS = (
+    (0, 210, 255),
+    (255, 92, 92),
+    (143, 255, 92),
+    (195, 110, 255),
+    (255, 190, 70),
+    (70, 150, 255),
+)
 
 
 def _friendly_error(exc: Exception) -> gr.Error:
@@ -85,76 +94,272 @@ def _clear_clicks(image_path: str | None) -> tuple[str | None, list[Any], list[A
     return image_path, [], []
 
 
+def _object_summary(objects: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "object_id": item["object_id"],
+            "category": item["category"],
+            "color_rgb": list(OBJECT_COLORS[(int(item["object_id"]) - 1) % len(OBJECT_COLORS)]),
+            "positive_points": sum(point["positive"] for point in item["points"]),
+            "negative_points": sum(not point["positive"] for point in item["points"]),
+        }
+        for item in objects
+    ]
+
+
+def _render_object_prompts(
+    image_path: str,
+    objects: list[dict[str, Any]],
+    selected_object_id: int | None,
+) -> Image.Image:
+    image = Image.open(image_path).convert("RGB")
+    draw = ImageDraw.Draw(image)
+    for item in objects:
+        object_id = int(item["object_id"])
+        color = OBJECT_COLORS[(object_id - 1) % len(OBJECT_COLORS)]
+        outline = "white" if object_id == selected_object_id else "#333333"
+        for point in item["points"]:
+            x, y = int(point["x"]), int(point["y"])
+            if point["positive"]:
+                draw.ellipse((x - 7, y - 7, x + 7, y + 7), fill=color, outline=outline, width=2)
+            else:
+                draw.line((x - 7, y - 7, x + 7, y + 7), fill=color, width=4)
+                draw.line((x - 7, y + 7, x + 7, y - 7), fill=color, width=4)
+            draw.text((x + 9, y - 9), str(object_id), fill=color, stroke_width=2, stroke_fill="black")
+    return image
+
+
+def _prepare_multi_video(
+    video_path: str | None,
+    config_path: str,
+) -> tuple[str, dict[str, Any], list[Any], dict[str, Any], list[Any], str, str]:
+    frame, task_state, _, status = _prepare_video(video_path, config_path)
+    return frame, task_state, [], gr.update(choices=[], value=None), [], status, frame
+
+
+def _add_object(
+    image_path: str | None,
+    category: str,
+    objects: list[dict[str, Any]] | None,
+) -> tuple[Image.Image, list[dict[str, Any]], dict[str, Any], list[dict[str, Any]], str]:
+    if not image_path:
+        raise gr.Error("请先完成视频抽帧。")
+    entries = [dict(item) for item in (objects or [])]
+    object_id = max((int(item["object_id"]) for item in entries), default=0) + 1
+    if object_id > 20:
+        raise gr.Error("单个任务最多支持 20 个目标。")
+    entries.append({"object_id": object_id, "category": category, "points": []})
+    choices = [(f"目标 {item['object_id']} · {item['category']}", item["object_id"]) for item in entries]
+    return (
+        _render_object_prompts(image_path, entries, object_id),
+        entries,
+        gr.update(choices=choices, value=object_id),
+        _object_summary(entries),
+        f"已新建目标 {object_id}，请为它添加至少一个正点。",
+    )
+
+
+def _delete_object(
+    image_path: str | None,
+    selected_object_id: int | float | None,
+    objects: list[dict[str, Any]] | None,
+) -> tuple[Image.Image | str | None, list[dict[str, Any]], dict[str, Any], list[dict[str, Any]], str]:
+    if selected_object_id is None:
+        raise gr.Error("请先选择要删除的目标。")
+    selected = int(selected_object_id)
+    entries = [item for item in (objects or []) if int(item["object_id"]) != selected]
+    next_id = int(entries[0]["object_id"]) if entries else None
+    choices = [(f"目标 {item['object_id']} · {item['category']}", item["object_id"]) for item in entries]
+    rendered = _render_object_prompts(image_path, entries, next_id) if image_path else None
+    return rendered, entries, gr.update(choices=choices, value=next_id), _object_summary(entries), f"已删除目标 {selected}。"
+
+
+def _select_object(
+    image_path: str | None,
+    selected_object_id: int | float | None,
+    objects: list[dict[str, Any]] | None,
+) -> tuple[Image.Image | str | None, str]:
+    if not image_path or selected_object_id is None:
+        return image_path, "请选择或新建目标。"
+    selected = int(selected_object_id)
+    return _render_object_prompts(image_path, objects or [], selected), f"当前编辑目标 {selected}。"
+
+
+def _add_object_click(
+    image_path: str | None,
+    prompt_kind: str,
+    selected_object_id: int | float | None,
+    objects: list[dict[str, Any]] | None,
+    event: gr.SelectData,
+) -> tuple[Image.Image, list[dict[str, Any]], list[dict[str, Any]]]:
+    if not image_path:
+        raise gr.Error("请先完成视频抽帧。")
+    if selected_object_id is None:
+        raise gr.Error("请先点击“新建目标”。")
+    selected = int(selected_object_id)
+    entries = [
+        {**item, "points": [dict(point) for point in item["points"]]}
+        for item in (objects or [])
+    ]
+    target = next((item for item in entries if int(item["object_id"]) == selected), None)
+    if target is None:
+        raise gr.Error("当前目标不存在，请重新选择。")
+    x, y = int(event.index[0]), int(event.index[1])
+    target["points"].append({"x": x, "y": y, "positive": prompt_kind == "正点"})
+    return _render_object_prompts(image_path, entries, selected), entries, _object_summary(entries)
+
+
+def _clear_object_points(
+    image_path: str | None,
+    selected_object_id: int | float | None,
+    objects: list[dict[str, Any]] | None,
+) -> tuple[Image.Image | str | None, list[dict[str, Any]], list[dict[str, Any]]]:
+    if selected_object_id is None:
+        raise gr.Error("请先选择目标。")
+    selected = int(selected_object_id)
+    entries = [
+        {**item, "points": [] if int(item["object_id"]) == selected else [dict(p) for p in item["points"]]}
+        for item in (objects or [])
+    ]
+    rendered = _render_object_prompts(image_path, entries, selected) if image_path else None
+    return rendered, entries, _object_summary(entries)
+
+
 def _save_runtime_prediction(
     runtime: dict[str, Any],
     prediction: Any,
     *,
     update_guard: bool = True,
+    only_object_id: int | None = None,
 ) -> None:
-    try:
-        object_index = prediction.object_ids.index(1)
-    except ValueError as exc:
-        raise RuntimeError("SAM2 correction result no longer contains object 1") from exc
     frame_index = prediction.frame_index
     stem = f"{frame_index:05d}"
-    saved, raw, components = save_boolean_mask_and_overlay(
-        prediction.masks[object_index],
-        runtime["frames"][frame_index],
-        runtime["task_root"] / "masks" / f"{stem}.png",
-        runtime["task_root"] / "overlays" / f"{stem}.jpg",
-        runtime["keep_largest"],
+    masks_by_id = dict(zip(prediction.object_ids, prediction.masks, strict=True))
+    effective_masks: dict[int, np.ndarray] = {}
+    for object_id, object_runtime in runtime["objects"].items():
+        object_dir = runtime["task_root"] / "masks" / f"object_{object_id:03d}"
+        object_dir.mkdir(parents=True, exist_ok=True)
+        if only_object_id is not None and object_id != only_object_id:
+            existing = object_dir / f"{stem}.png"
+            if existing.is_file():
+                effective_masks[object_id] = np.asarray(Image.open(existing)) > 0
+            continue
+        if object_id not in masks_by_id:
+            raise RuntimeError(f"SAM2 result no longer contains object {object_id}")
+        raw_mask = masks_by_id[object_id].astype(bool, copy=False)
+        analysis = keep_largest_component(raw_mask)
+        model_mask = analysis.mask if runtime["keep_largest"] else raw_mask
+        name = f"{stem}.png"
+        model_pixels = int(model_mask.sum())
+        object_runtime["model_mask_foreground_pixels"][name] = model_pixels
+        object_runtime["raw_mask_foreground_pixels"][name] = analysis.raw_foreground_pixels
+        object_runtime["model_mask_component_counts"][name] = analysis.component_count
+        final_mask = model_mask
+        final_components = analysis.component_count
+        if update_guard and object_runtime["reactivation_guard"] is not None:
+            confirmed = frame_index in object_runtime["guard_confirmed_frames"]
+            decision = object_runtime["reactivation_guard"].observe(
+                frame_index, model_pixels, confirmed=confirmed
+            )
+            if decision.suppress:
+                candidate_root = runtime["task_root"] / "review_candidates" / f"object_{object_id:03d}"
+                candidate_dir = candidate_root / "masks"
+                candidate_overlays = candidate_root / "overlays"
+                candidate_dir.mkdir(parents=True, exist_ok=True)
+                candidate_overlays.mkdir(parents=True, exist_ok=True)
+                Image.fromarray(model_mask.astype(np.uint8) * 255).save(candidate_dir / name)
+                candidate_frame = np.asarray(
+                    Image.open(runtime["frames"][frame_index]).convert("RGB"), dtype=np.float32
+                )
+                candidate_color = np.asarray(
+                    OBJECT_COLORS[(object_id - 1) % len(OBJECT_COLORS)], dtype=np.float32
+                )
+                candidate_frame[model_mask] = (
+                    candidate_frame[model_mask] * 0.55 + candidate_color * 0.45
+                )
+                candidate_frame[mask_boundary(model_mask)] = candidate_color
+                Image.fromarray(candidate_frame.astype(np.uint8)).save(
+                    candidate_overlays / f"{stem}.jpg", quality=92
+                )
+                if object_id == 1:
+                    legacy_candidate = runtime["task_root"] / "review_candidates" / "masks"
+                    legacy_overlay = runtime["task_root"] / "review_candidates" / "overlays"
+                    legacy_candidate.mkdir(parents=True, exist_ok=True)
+                    legacy_overlay.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(candidate_dir / name, legacy_candidate / name)
+                    shutil.copy2(candidate_overlays / f"{stem}.jpg", legacy_overlay / f"{stem}.jpg")
+                final_mask = np.zeros_like(model_mask, dtype=bool)
+                final_components = 0
+                object_runtime["guarded_frames"].append(
+                    {
+                        "object_id": object_id,
+                        "frame_index": frame_index,
+                        "candidate_pixels": model_pixels,
+                        "triggered_guard": decision.triggered,
+                        "preceding_empty_frames": decision.empty_frame_count,
+                    }
+                )
+        Image.fromarray(final_mask.astype(np.uint8) * 255).save(object_dir / name)
+        if object_id == 1:
+            Image.fromarray(final_mask.astype(np.uint8) * 255).save(runtime["task_root"] / "masks" / name)
+        object_runtime["mask_foreground_pixels"][name] = int(final_mask.sum())
+        object_runtime["mask_component_counts"][name] = final_components
+        effective_masks[object_id] = final_mask
+
+    frame = np.asarray(Image.open(runtime["frames"][frame_index]).convert("RGB"), dtype=np.float32)
+    for object_id in sorted(effective_masks):
+        mask = effective_masks[object_id]
+        color = np.asarray(OBJECT_COLORS[(object_id - 1) % len(OBJECT_COLORS)], dtype=np.float32)
+        frame[mask] = frame[mask] * 0.55 + color * 0.45
+        frame[mask_boundary(mask)] = color
+    Image.fromarray(frame.astype(np.uint8)).save(
+        runtime["task_root"] / "overlays" / f"{stem}.jpg", quality=92
     )
-    runtime["model_mask_foreground_pixels"][f"{stem}.png"] = saved
-    runtime["model_mask_component_counts"][f"{stem}.png"] = components
-    if update_guard and runtime.get("reactivation_guard") is not None:
-        confirmed = frame_index in runtime.get("guard_confirmed_frames", set())
-        decision = runtime["reactivation_guard"].observe(frame_index, saved, confirmed=confirmed)
-        if decision.suppress:
-            candidate_masks = runtime["task_root"] / "review_candidates" / "masks"
-            candidate_overlays = runtime["task_root"] / "review_candidates" / "overlays"
-            candidate_masks.mkdir(parents=True, exist_ok=True)
-            candidate_overlays.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(runtime["task_root"] / "masks" / f"{stem}.png", candidate_masks / f"{stem}.png")
-            shutil.copy2(runtime["task_root"] / "overlays" / f"{stem}.jpg", candidate_overlays / f"{stem}.jpg")
-            save_boolean_mask_and_overlay(
-                np.zeros_like(prediction.masks[object_index], dtype=bool),
-                runtime["frames"][frame_index],
-                runtime["task_root"] / "masks" / f"{stem}.png",
-                runtime["task_root"] / "overlays" / f"{stem}.jpg",
-                False,
-            )
-            saved = 0
-            components = 0
-            runtime["guarded_frames"].append(
-                {
-                    "frame_index": frame_index,
-                    "candidate_pixels": runtime["model_mask_foreground_pixels"][f"{stem}.png"],
-                    "triggered_guard": decision.triggered,
-                    "preceding_empty_frames": decision.empty_frame_count,
-                }
-            )
-    runtime["mask_foreground_pixels"][f"{stem}.png"] = saved
-    runtime["raw_mask_foreground_pixels"][f"{stem}.png"] = raw
-    runtime["mask_component_counts"][f"{stem}.png"] = components
 
 
 def _runtime_report(runtime: dict[str, Any]) -> dict[str, Any]:
-    anomaly_items = detect_reactivation(runtime["model_mask_foreground_pixels"])
-    anomaly_items.extend(detect_fragmentation(runtime["model_mask_component_counts"]))
-    anomalies = [asdict(item) for item in anomaly_items]
+    objects = []
+    anomalies: list[dict[str, Any]] = []
+    guarded_frames: list[dict[str, Any]] = []
+    for object_id, item in sorted(runtime["objects"].items()):
+        object_anomalies = detect_reactivation(item["model_mask_foreground_pixels"])
+        object_anomalies.extend(detect_fragmentation(item["model_mask_component_counts"]))
+        rendered = [{"object_id": object_id, **asdict(anomaly)} for anomaly in object_anomalies]
+        anomalies.extend(rendered)
+        guarded_frames.extend(item["guarded_frames"])
+        objects.append(
+            {
+                "object_id": object_id,
+                "category": item["category"],
+                "color_rgb": list(OBJECT_COLORS[(object_id - 1) % len(OBJECT_COLORS)]),
+                "mask_directory": f"masks/object_{object_id:03d}",
+                "initial_points": item["points"],
+                "mask_foreground_pixels": item["mask_foreground_pixels"],
+                "model_mask_foreground_pixels": item["model_mask_foreground_pixels"],
+                "raw_mask_foreground_pixels": item["raw_mask_foreground_pixels"],
+                "mask_component_counts": item["mask_component_counts"],
+                "model_mask_component_counts": item["model_mask_component_counts"],
+                "guarded_frames": item["guarded_frames"],
+                "anomalies": rendered,
+            }
+        )
+    first_id = min(runtime["objects"])
+    first = runtime["objects"][first_id]
     return {
-        "object_id": 1,
-        "category": runtime["category"],
+        "object_id": first_id,
+        "category": first["category"],
+        "object_count": len(objects),
+        "objects": objects,
         "frame_count": len(runtime["frames"]),
         "postprocessing": "largest_connected_component" if runtime["keep_largest"] else "none",
-        "mask_foreground_pixels": runtime["mask_foreground_pixels"],
-        "model_mask_foreground_pixels": runtime["model_mask_foreground_pixels"],
-        "raw_mask_foreground_pixels": runtime["raw_mask_foreground_pixels"],
-        "mask_component_counts": runtime["mask_component_counts"],
-        "model_mask_component_counts": runtime["model_mask_component_counts"],
-        "reactivation_guard_enabled": runtime["reactivation_guard"] is not None,
+        "mask_foreground_pixels": first["mask_foreground_pixels"],
+        "model_mask_foreground_pixels": first["model_mask_foreground_pixels"],
+        "raw_mask_foreground_pixels": first["raw_mask_foreground_pixels"],
+        "mask_component_counts": first["mask_component_counts"],
+        "model_mask_component_counts": first["model_mask_component_counts"],
+        "reactivation_guard_enabled": runtime["guard_reactivation"],
         "reactivation_guard_minimum_empty_frames": 3,
-        "guarded_frames": runtime["guarded_frames"],
+        "guarded_frames": guarded_frames,
         "model_load_seconds": runtime["model_load_seconds"],
         "initial_inference_seconds": runtime["initial_inference_seconds"],
         "corrections": runtime["corrections"],
@@ -176,10 +381,9 @@ def _write_runtime_outputs(runtime: dict[str, Any]) -> tuple[str, dict[str, Any]
     return str(preview), report
 
 
-def _run_segmentation(
+def _run_multi_segmentation(
     task_state: dict[str, Any] | None,
-    prompts: list[dict[str, Any]] | None,
-    category: str,
+    objects: list[dict[str, Any]] | None,
     checkpoint_path: str,
     config_path: str,
     keep_largest: bool,
@@ -187,8 +391,16 @@ def _run_segmentation(
 ) -> tuple[str, dict[str, Any], str, str]:
     if not task_state:
         raise gr.Error("请先上传并解析视频。")
-    if not prompts or not any(item["positive"] for item in prompts):
-        raise gr.Error("至少需要一个正点。")
+    if not objects:
+        raise gr.Error("请至少新建一个目标。")
+    object_ids = [int(item["object_id"]) for item in objects]
+    if len(objects) > 20:
+        raise gr.Error("单个任务最多支持 20 个目标。")
+    if any(object_id <= 0 for object_id in object_ids) or len(set(object_ids)) != len(object_ids):
+        raise gr.Error("目标 ID 必须是互不重复的正整数。")
+    for item in objects:
+        if not item.get("points") or not any(point["positive"] for point in item["points"]):
+            raise gr.Error(f"目标 {item['object_id']} 至少需要一个正点。")
     if not checkpoint_path:
         raise gr.Error("请填写本机 SAM2 权重路径。")
     try:
@@ -201,31 +413,44 @@ def _run_segmentation(
         engine, load_seconds = Sam2Engine.load(config, Path(checkpoint_path))
         frames = [Path(frame) for frame in task_state["frames"]]
         task_root = Path(task_state["task_root"])
-        prompt = ObjectPrompt(
-            object_id=1,
-            category=category,
-            frame_index=0,
-            points=tuple(PromptPoint(item["x"], item["y"], item["positive"]) for item in prompts),
-        )
         session = engine.start_session(frames)
-        session.add_prompt(prompt)
+        for item in objects:
+            session.add_prompt(
+                ObjectPrompt(
+                    object_id=int(item["object_id"]),
+                    category=item["category"],
+                    frame_index=0,
+                    points=tuple(
+                        PromptPoint(point["x"], point["y"], point["positive"])
+                        for point in item["points"]
+                    ),
+                )
+            )
+        object_runtimes = {
+            int(item["object_id"]): {
+                "category": item["category"],
+                "points": item["points"],
+                "mask_foreground_pixels": {},
+                "model_mask_foreground_pixels": {},
+                "raw_mask_foreground_pixels": {},
+                "mask_component_counts": {},
+                "model_mask_component_counts": {},
+                "reactivation_guard": ReactivationGuard(3) if guard_reactivation else None,
+                "guarded_frames": [],
+                "guard_confirmed_frames": set(),
+            }
+            for item in objects
+        }
         runtime: dict[str, Any] = {
             "session": session,
             "frames": frames,
             "task_root": task_root,
             "fps": task_state["fps"],
-            "category": category,
             "keep_largest": keep_largest,
             "model_load_seconds": load_seconds,
-            "mask_foreground_pixels": {},
-            "model_mask_foreground_pixels": {},
-            "raw_mask_foreground_pixels": {},
-            "mask_component_counts": {},
-            "model_mask_component_counts": {},
+            "objects": object_runtimes,
             "corrections": [],
-            "reactivation_guard": ReactivationGuard(3) if guard_reactivation else None,
-            "guarded_frames": [],
-            "guard_confirmed_frames": set(),
+            "guard_reactivation": guard_reactivation,
         }
         started = time.perf_counter()
         for prediction in session.propagate():
@@ -236,13 +461,30 @@ def _run_segmentation(
         with _SESSION_LOCK:
             _ACTIVE_SESSIONS[session_key] = runtime
         status = (
-            f"传播完成：{len(frames)} 帧，发现 {report['anomaly_count']} 个待复核异常。"
+            f"传播完成：{len(objects)} 个目标、{len(frames)} 帧，"
+            f"发现 {report['anomaly_count']} 个待复核异常。"
             f"重新激活保护抑制 {len(report['guarded_frames'])} 帧。"
             "可在下方输入帧号进行修正。"
         )
         return preview, report, status, session_key
     except Exception as exc:
         raise _friendly_error(exc) from exc
+
+
+def _run_segmentation(
+    task_state: dict[str, Any] | None,
+    prompts: list[dict[str, Any]] | None,
+    category: str,
+    checkpoint_path: str,
+    config_path: str,
+    keep_largest: bool,
+    guard_reactivation: bool,
+) -> tuple[str, dict[str, Any], str, str]:
+    """Compatibility wrapper for existing single-object verification scripts."""
+    objects = [{"object_id": 1, "category": category, "points": list(prompts or [])}]
+    return _run_multi_segmentation(
+        task_state, objects, checkpoint_path, config_path, keep_largest, guard_reactivation
+    )
 
 
 def _load_correction_frame(
@@ -263,6 +505,7 @@ def _apply_correction(
     session_key: str | None,
     frame_index: float | int,
     prompts: list[dict[str, Any]] | None,
+    object_id: int | float | None = 1,
 ) -> tuple[str, dict[str, Any], str, str, list[Any], list[Any]]:
     if not session_key:
         raise gr.Error("当前没有可修正的传播会话，请先运行传播。")
@@ -272,30 +515,37 @@ def _apply_correction(
         runtime = _ACTIVE_SESSIONS.get(session_key)
     if runtime is None:
         raise gr.Error("推理状态已释放，请重新运行传播后再修正。")
+    if object_id is None or int(object_id) not in runtime["objects"]:
+        raise gr.Error("请选择要修正的目标。")
+    selected_object_id = int(object_id)
     index = int(frame_index)
     if not 0 <= index < len(runtime["frames"]):
         raise gr.Error("修正帧号超出范围。")
     try:
-        if runtime.get("reactivation_guard") is not None:
-            runtime["reactivation_guard"] = ReactivationGuard(3)
-            runtime["guarded_frames"] = [
-                item for item in runtime["guarded_frames"] if item["frame_index"] < index
-            ]
-            for prior_index in range(index):
-                name = f"{prior_index:05d}.png"
-                count = runtime["model_mask_foreground_pixels"].get(name, 0)
-                runtime["reactivation_guard"].observe(prior_index, count)
-            runtime["guard_confirmed_frames"] = (
-                {index} if any(item["positive"] for item in prompts) else set()
-            )
+        if runtime["guard_reactivation"]:
+            for current_object_id, item in runtime["objects"].items():
+                item["reactivation_guard"] = ReactivationGuard(3)
+                item["guarded_frames"] = [
+                    entry for entry in item["guarded_frames"] if entry["frame_index"] < index
+                ]
+                for prior_index in range(index):
+                    name = f"{prior_index:05d}.png"
+                    count = item["model_mask_foreground_pixels"].get(name, 0)
+                    item["reactivation_guard"].observe(prior_index, count)
+                item["guard_confirmed_frames"] = (
+                    {index}
+                    if current_object_id == selected_object_id
+                    and any(point["positive"] for point in prompts)
+                    else set()
+                )
         correction = ObjectPrompt(
-            object_id=1,
-            category=runtime["category"],
+            object_id=selected_object_id,
+            category=runtime["objects"][selected_object_id]["category"],
             frame_index=index,
             points=tuple(PromptPoint(item["x"], item["y"], item["positive"]) for item in prompts),
         )
         immediate_prediction = runtime["session"].add_prompt(correction)
-        immediate_object_index = immediate_prediction.object_ids.index(1)
+        immediate_object_index = immediate_prediction.object_ids.index(selected_object_id)
         immediate_pixels = int(immediate_prediction.masks[immediate_object_index].sum())
         started = time.perf_counter()
         updated = 0
@@ -304,10 +554,16 @@ def _apply_correction(
             updated += 1
         # SAM2 returns the user-corrected mask immediately. Preserve that exact mask on
         # the correction frame even if the propagation iterator yields a cached frame.
-        _save_runtime_prediction(runtime, immediate_prediction, update_guard=False)
+        _save_runtime_prediction(
+            runtime,
+            immediate_prediction,
+            update_guard=False,
+            only_object_id=selected_object_id,
+        )
         elapsed = time.perf_counter() - started
         runtime["corrections"].append(
             {
+                "object_id": selected_object_id,
                 "frame_index": index,
                 "points": prompts,
                 "immediate_mask_pixels": immediate_pixels,
@@ -317,7 +573,10 @@ def _apply_correction(
         )
         preview, report = _write_runtime_outputs(runtime)
         overlay = str(runtime["task_root"] / "overlays" / f"{index:05d}.jpg")
-        status = f"第 {index} 帧修正完成，重新传播 {updated} 帧，用时 {elapsed:.3f} 秒。"
+        status = (
+            f"目标 {selected_object_id} 的第 {index} 帧修正完成，"
+            f"重新传播 {updated} 帧，用时 {elapsed:.3f} 秒。"
+        )
         return preview, report, status, overlay, [], []
     except Exception as exc:
         raise _friendly_error(exc) from exc
@@ -334,7 +593,7 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             "禁止上传私人照片、人像测试素材或未经授权的视频。"
         )
         task_state = gr.State()
-        prompt_state = gr.State([])
+        objects_state = gr.State([])
         first_frame_path = gr.State()
         session_key = gr.State()
         config_value = gr.State(str(config_path))
@@ -349,9 +608,16 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 )
                 prepare = gr.Button("1. 抽帧并显示首帧", variant="primary")
             with gr.Column():
-                frame = gr.Image(label="2. 点击首帧添加提示", interactive=False)
+                frame = gr.Image(label="2. 为多个目标添加提示", interactive=False)
+                with gr.Row():
+                    add_object = gr.Button("新建目标", variant="primary")
+                    delete_object = gr.Button("删除当前目标")
+                current_object = gr.Dropdown(choices=[], label="当前目标", interactive=True)
                 prompt_kind = gr.Radio(["正点", "负点"], value="正点", label="当前点击类型")
-                gr.Markdown("建议：目标内部放 1–2 个正点；若掩码覆盖邻近目标，在邻近目标内部添加负点。")
+                gr.Markdown(
+                    "先选择类别并新建目标，再在目标内部添加正点；切换目标后继续点击。"
+                    "若掩码可能覆盖邻近物体，可在邻近物体内部为当前目标添加负点。"
+                )
                 keep_largest = gr.Checkbox(
                     value=True,
                     label="只保留最大连通区域（减少不相连的串目标）",
@@ -360,8 +626,8 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                     value=True,
                     label="重新激活保护（目标连续消失 3 帧后暂停可疑掩码）",
                 )
-                prompt_table = gr.JSON(label="提示点")
-                clear = gr.Button("清空提示点")
+                object_table = gr.JSON(label="目标与提示点统计")
+                clear = gr.Button("清空当前目标提示点")
         run = gr.Button("3. 运行 SAM2 传播", variant="primary")
         status = gr.Textbox(label="状态", interactive=False)
         with gr.Row():
@@ -387,24 +653,42 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 apply_correction = gr.Button("应用修正并重新传播", variant="primary")
 
         prepare.click(
-            _prepare_video,
+            _prepare_multi_video,
             inputs=[video, config_value],
-            outputs=[frame, task_state, prompt_state, status],
-        ).then(lambda state: state["frames"][0], inputs=task_state, outputs=first_frame_path)
+            outputs=[
+                frame, task_state, objects_state, current_object,
+                object_table, status, first_frame_path,
+            ],
+        )
+        add_object.click(
+            _add_object,
+            inputs=[first_frame_path, category, objects_state],
+            outputs=[frame, objects_state, current_object, object_table, status],
+        )
+        delete_object.click(
+            _delete_object,
+            inputs=[first_frame_path, current_object, objects_state],
+            outputs=[frame, objects_state, current_object, object_table, status],
+        )
+        current_object.change(
+            _select_object,
+            inputs=[first_frame_path, current_object, objects_state],
+            outputs=[frame, status],
+        )
         frame.select(
-            _add_click,
-            inputs=[first_frame_path, prompt_kind, prompt_state],
-            outputs=[frame, prompt_state, prompt_table],
+            _add_object_click,
+            inputs=[first_frame_path, prompt_kind, current_object, objects_state],
+            outputs=[frame, objects_state, object_table],
         )
         clear.click(
-            _clear_clicks,
-            inputs=first_frame_path,
-            outputs=[frame, prompt_state, prompt_table],
+            _clear_object_points,
+            inputs=[first_frame_path, current_object, objects_state],
+            outputs=[frame, objects_state, object_table],
         )
         run.click(
-            _run_segmentation,
+            _run_multi_segmentation,
             inputs=[
-                task_state, prompt_state, category, checkpoint, config_value,
+                task_state, objects_state, checkpoint, config_value,
                 keep_largest, guard_reactivation,
             ],
             outputs=[preview, report, status, session_key],
@@ -426,7 +710,7 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
         )
         apply_correction.click(
             _apply_correction,
-            inputs=[session_key, correction_index, correction_prompt_state],
+            inputs=[session_key, correction_index, correction_prompt_state, current_object],
             outputs=[preview, report, status, correction_frame, correction_prompt_state, correction_table],
         )
     return demo

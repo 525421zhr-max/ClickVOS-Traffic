@@ -99,7 +99,9 @@ export CLICKVOS_CHECKPOINT=/absolute/path/to/sam2.1_hiera_tiny.pt
 python -m clickvos.web_app
 ```
 
-浏览器访问 `http://127.0.0.1:7860`，可上传视频、抽帧、在首帧添加正负点、运行传播，并查看 MP4 与异常报告。当前页面已完成单目标首帧分割与中间帧修正闭环；多对象推理会话接口已经具备，但 Web 对象管理界面仍待接入。
+浏览器访问 `http://127.0.0.1:7860`，可上传视频、抽帧、新建多个目标并分别添加正负点，然后一次传播全部目标。每个对象使用独立颜色、类别、对象 ID、掩码目录和异常统计；合成 MP4 同时显示全部目标。中间帧修正会作用于“当前目标”，其他对象继续保留在同一 SAM2 会话中。
+
+多目标操作顺序：选择类别并点击“新建目标” → 选择当前目标 → 添加正负点 → 为其他目标重复上述操作 → 运行传播。每个目标必须至少包含一个正点，最多支持 20 个目标。
 
 若掩码覆盖了另一个不相连目标，可启用“只保留最大连通区域”。该选项不会解决相连区域的边界错误或身份漂移；此时应在错误目标内部增加负点，或在后续帧重新修正。叠加预览使用黄色边界显示实际二值掩码边缘，便于区分“显示透明造成的模糊”和“掩码本身不准”。
 
@@ -116,5 +118,6 @@ python -m clickvos.web_app
 - [W05 掩码质量小试验摘要](docs/research/results/w05-mask-quality-pilot.json)
 - [W06 中间帧修正摘要](docs/research/results/w06-midframe-correction.json)
 - [W07 重新激活保护摘要](docs/research/results/w07-reactivation-guard.json)
+- [W08 Web 多目标分割摘要](docs/research/results/w08-web-multi-object.json)
 
 每次推送都会运行轻量仓库检查：解析配置与实验 JSON、检查必需文档、阻止视频或模型权重进入版本控制，并对 Python 源码执行语法编译。完整 GPU/SAM2 回归仍需在项目的 WSL 环境中运行。

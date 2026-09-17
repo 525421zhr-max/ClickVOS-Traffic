@@ -36,4 +36,6 @@
 - [W04：多对象、中间帧修正与 Web 界面](W04-multi-object-correction-web.md)（2026-09-16 提前完成）
 - [W05：掩码清晰度与串目标诊断](W05-mask-quality-pilot.md)（2026-09-17 完成）
 - [W06：Web 中间帧修正闭环](W06-web-midframe-correction.md)（2026-09-17 完成）
+- [W07：目标重新激活保护](W07-reactivation-guard.md)（2026-09-17 完成）
+- [W08：Web 多目标交互式分割](W08-web-multi-object.md)（2026-09-17 完成）
 - 新一周从 [周记录模板](WEEKLY-TEMPLATE.md) 复制，实际结果必须来自命令输出或原始记录。

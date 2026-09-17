@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/W08-web-multi-object.md",
+  "checkpoint": "W08",
+  "date": "2026-09-17",
+  "status": "engineering_pass_two_vehicle_case",
+  "input": {
+    "source_id": "traffic-001",
+    "frames": 50,
+    "objects": [
+      {"object_id": 1, "category": "vehicle", "positive_points": [[520, 370]]},
+      {"object_id": 2, "category": "vehicle", "positive_points": [[700, 440]]}
+    ],
+    "largest_component_filter": true,
+    "reactivation_guard_enabled": true
+  },
+  "measurements": {
+    "model_load_seconds": 1.3483893450002142,
+    "multi_object_inference_seconds": 8.280665602999761,
+    "saved_masks_per_object": 50,
+    "saved_composite_overlays": 50,
+    "preview_bytes": 466644,
+    "aggregate_anomaly_count": 7,
+    "guarded_frame_count": 4,
+    "first_six_pixels_object_1": [1814, 2000, 2152, 2415, 2612, 2801],
+    "first_six_pixels_object_2": [4438, 5115, 5707, 6613, 5019, 2698]
+  },
+  "conclusion": "The Web execution path propagated two separately prompted vehicle instances in one SAM2 session and saved independent masks plus a composite preview.",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "limitations": [
+    "Validated on two vehicles in one registered public video only.",
+    "No frame-level ground truth; IoU, J and F were not calculated.",
+    "Overlapping instance masks are drawn in object-ID order and are not yet flagged."
+  ]
+}
