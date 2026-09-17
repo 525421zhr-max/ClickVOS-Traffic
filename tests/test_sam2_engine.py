@@ -20,6 +20,11 @@ def test_prompt_requires_positive_point() -> None:
         prompt.validate(100, 100, {"vehicle"})
 
 
+def test_correction_prompt_may_use_only_negative_points() -> None:
+    prompt = ObjectPrompt(1, "vehicle", 2, (PromptPoint(10, 20, False),))
+    prompt.validate(100, 100, {"vehicle"}, require_positive=False)
+
+
 def test_prompt_rejects_out_of_bounds_point() -> None:
     prompt = ObjectPrompt(1, "vehicle", 0, (PromptPoint(100, 20),))
     with pytest.raises(ValueError, match="outside"):

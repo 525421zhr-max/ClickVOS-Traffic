@@ -38,14 +38,22 @@ class ObjectPrompt:
     frame_index: int
     points: tuple[PromptPoint, ...]
 
-    def validate(self, width: int, height: int, categories: set[str]) -> None:
+    def validate(
+        self,
+        width: int,
+        height: int,
+        categories: set[str],
+        require_positive: bool = True,
+    ) -> None:
         if self.object_id <= 0:
             raise ValueError("object_id must be positive")
         if self.category not in categories:
             raise ValueError(f"unsupported category: {self.category}")
         if self.frame_index < 0:
             raise ValueError("frame_index must not be negative")
-        if not self.points or not any(point.positive for point in self.points):
+        if not self.points:
+            raise ValueError("at least one point is required")
+        if require_positive and not any(point.positive for point in self.points):
             raise ValueError("at least one positive point is required")
         for point in self.points:
             if not 0 <= point.x < width or not 0 <= point.y < height:
@@ -101,6 +109,19 @@ def save_mask_and_overlay(
     keep_largest: bool = False,
 ) -> tuple[int, int, int]:
     mask = (logits > 0).detach().cpu().numpy().squeeze().astype(bool)
+    return save_boolean_mask_and_overlay(
+        mask, frame_path, mask_path, overlay_path, keep_largest
+    )
+
+
+def save_boolean_mask_and_overlay(
+    mask: np.ndarray,
+    frame_path: Path,
+    mask_path: Path,
+    overlay_path: Path,
+    keep_largest: bool = False,
+) -> tuple[int, int, int]:
+    mask = mask.astype(bool, copy=False)
     if mask.ndim != 2:
         raise ValueError(f"expected a 2D mask, got shape {mask.shape}")
     components = keep_largest_component(mask)
@@ -272,6 +293,7 @@ class Sam2Session:
             self.width,
             self.height,
             {category.key for category in self.config.categories},
+            require_positive=prompt.object_id not in self.objects,
         )
         if prompt.frame_index >= len(self.frames):
             raise ValueError("prompt frame is outside the extracted frame sequence")

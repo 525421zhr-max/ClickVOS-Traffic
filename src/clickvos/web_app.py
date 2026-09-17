@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import gc
+import threading
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -11,14 +14,24 @@ from typing import Any
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
 
 import gradio as gr
+import torch
 from PIL import Image, ImageDraw
 
 from clickvos.anomaly import detect_fragmentation, detect_reactivation
 from clickvos.config import AppConfig, load_config
 from clickvos.errors import ClickVOSError
 from clickvos.export import build_preview_video
-from clickvos.sam2_engine import ObjectPrompt, PromptPoint, Sam2Engine
+from clickvos.sam2_engine import (
+    ObjectPrompt,
+    PromptPoint,
+    Sam2Engine,
+    save_boolean_mask_and_overlay,
+)
 from clickvos.video_io import prepare_task
+
+
+_ACTIVE_SESSIONS: dict[str, dict[str, Any]] = {}
+_SESSION_LOCK = threading.Lock()
 
 
 def _friendly_error(exc: Exception) -> gr.Error:
@@ -69,6 +82,58 @@ def _clear_clicks(image_path: str | None) -> tuple[str | None, list[Any], list[A
     return image_path, [], []
 
 
+def _save_runtime_prediction(runtime: dict[str, Any], prediction: Any) -> None:
+    try:
+        object_index = prediction.object_ids.index(1)
+    except ValueError as exc:
+        raise RuntimeError("SAM2 correction result no longer contains object 1") from exc
+    frame_index = prediction.frame_index
+    stem = f"{frame_index:05d}"
+    saved, raw, components = save_boolean_mask_and_overlay(
+        prediction.masks[object_index],
+        runtime["frames"][frame_index],
+        runtime["task_root"] / "masks" / f"{stem}.png",
+        runtime["task_root"] / "overlays" / f"{stem}.jpg",
+        runtime["keep_largest"],
+    )
+    runtime["mask_foreground_pixels"][f"{stem}.png"] = saved
+    runtime["raw_mask_foreground_pixels"][f"{stem}.png"] = raw
+    runtime["mask_component_counts"][f"{stem}.png"] = components
+
+
+def _runtime_report(runtime: dict[str, Any]) -> dict[str, Any]:
+    anomaly_items = detect_reactivation(runtime["mask_foreground_pixels"])
+    anomaly_items.extend(detect_fragmentation(runtime["mask_component_counts"]))
+    anomalies = [asdict(item) for item in anomaly_items]
+    return {
+        "object_id": 1,
+        "category": runtime["category"],
+        "frame_count": len(runtime["frames"]),
+        "postprocessing": "largest_connected_component" if runtime["keep_largest"] else "none",
+        "mask_foreground_pixels": runtime["mask_foreground_pixels"],
+        "raw_mask_foreground_pixels": runtime["raw_mask_foreground_pixels"],
+        "mask_component_counts": runtime["mask_component_counts"],
+        "model_load_seconds": runtime["model_load_seconds"],
+        "initial_inference_seconds": runtime["initial_inference_seconds"],
+        "corrections": runtime["corrections"],
+        "anomaly_count": len(anomalies),
+        "anomalies": anomalies,
+    }
+
+
+def _write_runtime_outputs(runtime: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    preview = build_preview_video(
+        runtime["task_root"] / "overlays",
+        runtime["task_root"] / "exports" / "preview.mp4",
+        runtime["fps"],
+    )
+    report = _runtime_report(runtime)
+    (runtime["task_root"] / "result.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return str(preview), report
+
+
 def _run_segmentation(
     task_state: dict[str, Any] | None,
     prompts: list[dict[str, Any]] | None,
@@ -76,7 +141,7 @@ def _run_segmentation(
     checkpoint_path: str,
     config_path: str,
     keep_largest: bool,
-) -> tuple[str, dict[str, Any], str]:
+) -> tuple[str, dict[str, Any], str, str]:
     if not task_state:
         raise gr.Error("请先上传并解析视频。")
     if not prompts or not any(item["positive"] for item in prompts):
@@ -85,6 +150,11 @@ def _run_segmentation(
         raise gr.Error("请填写本机 SAM2 权重路径。")
     try:
         config = load_config(Path(config_path))
+        with _SESSION_LOCK:
+            _ACTIVE_SESSIONS.clear()
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
         engine, load_seconds = Sam2Engine.load(config, Path(checkpoint_path))
         frames = [Path(frame) for frame in task_state["frames"]]
         task_root = Path(task_state["task_root"])
@@ -94,27 +164,100 @@ def _run_segmentation(
             frame_index=0,
             points=tuple(PromptPoint(item["x"], item["y"], item["positive"]) for item in prompts),
         )
-        result = engine.propagate_single(
-            frames,
-            prompt,
-            task_root / "masks",
-            task_root / "overlays",
-            keep_largest_component_only=keep_largest,
-        )
-        preview = build_preview_video(task_root / "overlays", task_root / "exports" / "preview.mp4", task_state["fps"])
-        anomaly_items = detect_reactivation(result.mask_foreground_pixels)
-        anomaly_items.extend(detect_fragmentation(result.mask_component_counts))
-        anomalies = [asdict(item) for item in anomaly_items]
-        report = {
-            **result.as_dict(),
+        session = engine.start_session(frames)
+        session.add_prompt(prompt)
+        runtime: dict[str, Any] = {
+            "session": session,
+            "frames": frames,
+            "task_root": task_root,
+            "fps": task_state["fps"],
+            "category": category,
+            "keep_largest": keep_largest,
             "model_load_seconds": load_seconds,
-            "prompt_points": prompts,
-            "anomaly_count": len(anomalies),
-            "anomalies": anomalies,
+            "mask_foreground_pixels": {},
+            "raw_mask_foreground_pixels": {},
+            "mask_component_counts": {},
+            "corrections": [],
         }
-        (task_root / "result.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-        status = f"传播完成：{result.frame_count} 帧，发现 {len(anomalies)} 个待复核异常。"
-        return str(preview), report, status
+        started = time.perf_counter()
+        for prediction in session.propagate():
+            _save_runtime_prediction(runtime, prediction)
+        runtime["initial_inference_seconds"] = time.perf_counter() - started
+        preview, report = _write_runtime_outputs(runtime)
+        session_key = task_root.name
+        with _SESSION_LOCK:
+            _ACTIVE_SESSIONS[session_key] = runtime
+        status = (
+            f"传播完成：{len(frames)} 帧，发现 {report['anomaly_count']} 个待复核异常。"
+            "可在下方输入帧号进行修正。"
+        )
+        return preview, report, status, session_key
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+
+
+def _load_correction_frame(
+    task_state: dict[str, Any] | None,
+    frame_index: float | int,
+) -> tuple[str, str, list[Any], list[Any], str]:
+    if not task_state:
+        raise gr.Error("请先上传并运行视频传播。")
+    index = int(frame_index)
+    frames = task_state["frames"]
+    if not 0 <= index < len(frames):
+        raise gr.Error(f"帧号必须在 0 到 {len(frames) - 1} 之间。")
+    path = frames[index]
+    return path, path, [], [], f"已载入第 {index} 帧，请添加修正点。"
+
+
+def _apply_correction(
+    session_key: str | None,
+    frame_index: float | int,
+    prompts: list[dict[str, Any]] | None,
+) -> tuple[str, dict[str, Any], str, str, list[Any], list[Any]]:
+    if not session_key:
+        raise gr.Error("当前没有可修正的传播会话，请先运行传播。")
+    if not prompts:
+        raise gr.Error("请至少添加一个修正点。")
+    with _SESSION_LOCK:
+        runtime = _ACTIVE_SESSIONS.get(session_key)
+    if runtime is None:
+        raise gr.Error("推理状态已释放，请重新运行传播后再修正。")
+    index = int(frame_index)
+    if not 0 <= index < len(runtime["frames"]):
+        raise gr.Error("修正帧号超出范围。")
+    try:
+        correction = ObjectPrompt(
+            object_id=1,
+            category=runtime["category"],
+            frame_index=index,
+            points=tuple(PromptPoint(item["x"], item["y"], item["positive"]) for item in prompts),
+        )
+        immediate_prediction = runtime["session"].add_prompt(correction)
+        immediate_object_index = immediate_prediction.object_ids.index(1)
+        immediate_pixels = int(immediate_prediction.masks[immediate_object_index].sum())
+        started = time.perf_counter()
+        updated = 0
+        for prediction in runtime["session"].propagate(start_frame_idx=index):
+            _save_runtime_prediction(runtime, prediction)
+            updated += 1
+        # SAM2 returns the user-corrected mask immediately. Preserve that exact mask on
+        # the correction frame even if the propagation iterator yields a cached frame.
+        _save_runtime_prediction(runtime, immediate_prediction)
+        elapsed = time.perf_counter() - started
+        runtime["corrections"].append(
+            {
+                "frame_index": index,
+                "points": prompts,
+                "immediate_mask_pixels": immediate_pixels,
+                "propagated_frames": updated,
+                "seconds": elapsed,
+            }
+        )
+        preview, report = _write_runtime_outputs(runtime)
+        overlay = str(runtime["task_root"] / "overlays" / f"{index:05d}.jpg")
+        status = f"第 {index} 帧修正完成，重新传播 {updated} 帧，用时 {elapsed:.3f} 秒。"
+        return preview, report, status, overlay, [], []
     except Exception as exc:
         raise _friendly_error(exc) from exc
 
@@ -132,6 +275,7 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
         task_state = gr.State()
         prompt_state = gr.State([])
         first_frame_path = gr.State()
+        session_key = gr.State()
         config_value = gr.State(str(config_path))
         with gr.Row():
             with gr.Column():
@@ -158,6 +302,22 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
         with gr.Row():
             preview = gr.Video(label="分割预览")
             report = gr.JSON(label="运行结果与异常")
+        with gr.Accordion("4. 中间帧修正", open=True):
+            gr.Markdown(
+                "根据异常报告或预览输入帧号，载入该帧后添加正点或负点。"
+                "修正会从该帧重新传播到视频结尾。"
+            )
+            with gr.Row():
+                correction_index = gr.Number(value=0, precision=0, minimum=0, label="修正帧号（从 0 开始）")
+                load_correction = gr.Button("载入修正帧")
+            correction_frame_path = gr.State()
+            correction_prompt_state = gr.State([])
+            correction_frame = gr.Image(label="点击该帧添加修正提示", interactive=False)
+            correction_kind = gr.Radio(["正点", "负点"], value="负点", label="修正点击类型")
+            correction_table = gr.JSON(label="本次修正点")
+            with gr.Row():
+                clear_correction = gr.Button("清空修正点")
+                apply_correction = gr.Button("应用修正并重新传播", variant="primary")
 
         prepare.click(
             _prepare_video,
@@ -177,7 +337,27 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
         run.click(
             _run_segmentation,
             inputs=[task_state, prompt_state, category, checkpoint, config_value, keep_largest],
-            outputs=[preview, report, status],
+            outputs=[preview, report, status, session_key],
+        )
+        load_correction.click(
+            _load_correction_frame,
+            inputs=[task_state, correction_index],
+            outputs=[correction_frame, correction_frame_path, correction_prompt_state, correction_table, status],
+        )
+        correction_frame.select(
+            _add_click,
+            inputs=[correction_frame_path, correction_kind, correction_prompt_state],
+            outputs=[correction_frame, correction_prompt_state, correction_table],
+        )
+        clear_correction.click(
+            _clear_clicks,
+            inputs=correction_frame_path,
+            outputs=[correction_frame, correction_prompt_state, correction_table],
+        )
+        apply_correction.click(
+            _apply_correction,
+            inputs=[session_key, correction_index, correction_prompt_state],
+            outputs=[preview, report, status, correction_frame, correction_prompt_state, correction_table],
         )
     return demo
 

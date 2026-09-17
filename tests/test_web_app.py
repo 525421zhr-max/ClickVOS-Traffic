@@ -10,4 +10,7 @@ def test_gradio_demo_builds_with_expected_title() -> None:
     config = demo.get_config_file()
     assert config["title"] == "ClickVOS Traffic"
     labels = {component.get("props", {}).get("label") for component in config["components"]}
-    assert {"交通视频", "目标类别", "分割预览", "运行结果与异常"} <= labels
+    assert {
+        "交通视频", "目标类别", "分割预览", "运行结果与异常",
+        "修正帧号（从 0 开始）", "点击该帧添加修正提示",
+    } <= labels

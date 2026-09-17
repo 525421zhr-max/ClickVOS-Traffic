@@ -35,4 +35,5 @@
 - [W03：SAM2 引擎、异常检测与预览导出](W03-sam2-engine-and-anomaly.md)（2026-09-16 提前完成）
 - [W04：多对象、中间帧修正与 Web 界面](W04-multi-object-correction-web.md)（2026-09-16 提前完成）
 - [W05：掩码清晰度与串目标诊断](W05-mask-quality-pilot.md)（2026-09-17 完成）
+- [W06：Web 中间帧修正闭环](W06-web-midframe-correction.md)（2026-09-17 完成）
 - 新一周从 [周记录模板](WEEKLY-TEMPLATE.md) 复制，实际结果必须来自命令输出或原始记录。
