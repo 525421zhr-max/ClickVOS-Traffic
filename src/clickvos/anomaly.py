@@ -53,6 +53,27 @@ def detect_reactivation(
     return anomalies
 
 
+def detect_fragmentation(
+    component_counts: Mapping[str, int],
+    minimum_components: int = 2,
+) -> list[Anomaly]:
+    if minimum_components < 2:
+        raise ValueError("minimum_components must be at least 2")
+    anomalies = []
+    for name, count in sorted(component_counts.items(), key=lambda item: int(Path(item[0]).stem)):
+        if int(count) >= minimum_components:
+            anomalies.append(
+                Anomaly(
+                    kind="fragmented_mask",
+                    frame_index=int(Path(name).stem),
+                    severity="medium",
+                    message="掩码包含多个不相连区域，可能覆盖了其他目标。",
+                    evidence={"component_count": int(count)},
+                )
+            )
+    return anomalies
+
+
 def analyze_result_file(result_path: Path, minimum_empty_frames: int = 3) -> dict[str, object]:
     payload = json.loads(result_path.read_text(encoding="utf-8"))
     anomalies = detect_reactivation(payload["mask_foreground_pixels"], minimum_empty_frames)

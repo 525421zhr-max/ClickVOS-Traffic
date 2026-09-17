@@ -13,7 +13,7 @@ os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
 import gradio as gr
 from PIL import Image, ImageDraw
 
-from clickvos.anomaly import detect_reactivation
+from clickvos.anomaly import detect_fragmentation, detect_reactivation
 from clickvos.config import AppConfig, load_config
 from clickvos.errors import ClickVOSError
 from clickvos.export import build_preview_video
@@ -75,6 +75,7 @@ def _run_segmentation(
     category: str,
     checkpoint_path: str,
     config_path: str,
+    keep_largest: bool,
 ) -> tuple[str, dict[str, Any], str]:
     if not task_state:
         raise gr.Error("请先上传并解析视频。")
@@ -93,9 +94,17 @@ def _run_segmentation(
             frame_index=0,
             points=tuple(PromptPoint(item["x"], item["y"], item["positive"]) for item in prompts),
         )
-        result = engine.propagate_single(frames, prompt, task_root / "masks", task_root / "overlays")
+        result = engine.propagate_single(
+            frames,
+            prompt,
+            task_root / "masks",
+            task_root / "overlays",
+            keep_largest_component_only=keep_largest,
+        )
         preview = build_preview_video(task_root / "overlays", task_root / "exports" / "preview.mp4", task_state["fps"])
-        anomalies = [asdict(item) for item in detect_reactivation(result.mask_foreground_pixels)]
+        anomaly_items = detect_reactivation(result.mask_foreground_pixels)
+        anomaly_items.extend(detect_fragmentation(result.mask_component_counts))
+        anomalies = [asdict(item) for item in anomaly_items]
         report = {
             **result.as_dict(),
             "model_load_seconds": load_seconds,
@@ -137,6 +146,11 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             with gr.Column():
                 frame = gr.Image(label="2. 点击首帧添加提示", interactive=False)
                 prompt_kind = gr.Radio(["正点", "负点"], value="正点", label="当前点击类型")
+                gr.Markdown("建议：目标内部放 1–2 个正点；若掩码覆盖邻近目标，在邻近目标内部添加负点。")
+                keep_largest = gr.Checkbox(
+                    value=True,
+                    label="只保留最大连通区域（减少不相连的串目标）",
+                )
                 prompt_table = gr.JSON(label="提示点")
                 clear = gr.Button("清空提示点")
         run = gr.Button("3. 运行 SAM2 传播", variant="primary")
@@ -162,7 +176,7 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
         )
         run.click(
             _run_segmentation,
-            inputs=[task_state, prompt_state, category, checkpoint, config_value],
+            inputs=[task_state, prompt_state, category, checkpoint, config_value, keep_largest],
             outputs=[preview, report, status],
         )
     return demo

@@ -15,6 +15,7 @@ from PIL import Image
 
 from clickvos.config import AppConfig
 from clickvos.errors import ClickVOSError, ErrorCode
+from clickvos.mask_processing import keep_largest_component, mask_boundary
 
 
 class Predictor(Protocol):
@@ -57,7 +58,10 @@ class PropagationResult:
     category: str
     frame_count: int
     propagation_yield_count: int
+    postprocessing: str
     mask_foreground_pixels: dict[str, int]
+    raw_mask_foreground_pixels: dict[str, int]
+    mask_component_counts: dict[str, int]
     inference_seconds: float
     peak_cuda_memory_bytes: int | None
 
@@ -94,10 +98,14 @@ def save_mask_and_overlay(
     frame_path: Path,
     mask_path: Path,
     overlay_path: Path,
-) -> int:
+    keep_largest: bool = False,
+) -> tuple[int, int, int]:
     mask = (logits > 0).detach().cpu().numpy().squeeze().astype(bool)
     if mask.ndim != 2:
         raise ValueError(f"expected a 2D mask, got shape {mask.shape}")
+    components = keep_largest_component(mask)
+    if keep_largest:
+        mask = components.mask
     Image.fromarray(mask.astype(np.uint8) * 255).save(mask_path)
     frame = np.asarray(Image.open(frame_path).convert("RGB"), dtype=np.float32)
     if frame.shape[:2] != mask.shape:
@@ -105,8 +113,9 @@ def save_mask_and_overlay(
     green = np.zeros_like(frame)
     green[..., 1] = 255
     frame[mask] = frame[mask] * 0.55 + green[mask] * 0.45
+    frame[mask_boundary(mask)] = np.array([255, 230, 0], dtype=np.float32)
     Image.fromarray(frame.astype(np.uint8)).save(overlay_path, quality=92)
-    return int(mask.sum())
+    return int(mask.sum()), components.raw_foreground_pixels, components.component_count
 
 
 class Sam2Engine:
@@ -150,6 +159,7 @@ class Sam2Engine:
         prompt: ObjectPrompt,
         masks_dir: Path,
         overlays_dir: Path,
+        keep_largest_component_only: bool = False,
     ) -> PropagationResult:
         if not frames:
             raise ValueError("frames must not be empty")
@@ -166,6 +176,8 @@ class Sam2Engine:
         points = np.asarray([(point.x, point.y) for point in prompt.points], dtype=np.float32)
         labels = np.asarray([1 if point.positive else 0 for point in prompt.points], dtype=np.int32)
         pixel_counts: dict[str, int] = {}
+        raw_pixel_counts: dict[str, int] = {}
+        component_counts: dict[str, int] = {}
         if self.config.model.device == "cuda":
             torch.cuda.reset_peak_memory_stats()
             inference_context = torch.inference_mode()
@@ -191,12 +203,16 @@ class Sam2Engine:
             if list(object_ids) != [prompt.object_id]:
                 raise RuntimeError(f"predictor returned unexpected object IDs: {list(object_ids)}")
             prompt_stem = f"{prompt.frame_index:05d}"
-            pixel_counts[f"{prompt_stem}.png"] = save_mask_and_overlay(
+            saved, raw, components = save_mask_and_overlay(
                 first_logits[0],
                 frames[prompt.frame_index],
                 masks_dir / f"{prompt_stem}.png",
                 overlays_dir / f"{prompt_stem}.jpg",
+                keep_largest_component_only,
             )
+            pixel_counts[f"{prompt_stem}.png"] = saved
+            raw_pixel_counts[f"{prompt_stem}.png"] = raw
+            component_counts[f"{prompt_stem}.png"] = components
             propagation_yields = 0
             for frame_index, propagated_ids, logits in self.predictor.propagate_in_video(state):
                 if list(propagated_ids) != [prompt.object_id]:
@@ -204,9 +220,13 @@ class Sam2Engine:
                 if not 0 <= frame_index < len(frames):
                     raise RuntimeError(f"predictor returned invalid frame index: {frame_index}")
                 stem = f"{frame_index:05d}"
-                pixel_counts[f"{stem}.png"] = save_mask_and_overlay(
-                    logits[0], frames[frame_index], masks_dir / f"{stem}.png", overlays_dir / f"{stem}.jpg"
+                saved, raw, components = save_mask_and_overlay(
+                    logits[0], frames[frame_index], masks_dir / f"{stem}.png", overlays_dir / f"{stem}.jpg",
+                    keep_largest_component_only,
                 )
+                pixel_counts[f"{stem}.png"] = saved
+                raw_pixel_counts[f"{stem}.png"] = raw
+                component_counts[f"{stem}.png"] = components
                 propagation_yields += 1
         elapsed = time.perf_counter() - started
         peak_memory = torch.cuda.max_memory_allocated() if self.config.model.device == "cuda" else None
@@ -215,7 +235,10 @@ class Sam2Engine:
             category=prompt.category,
             frame_count=len(frames),
             propagation_yield_count=propagation_yields,
+            postprocessing="largest_connected_component" if keep_largest_component_only else "none",
             mask_foreground_pixels=pixel_counts,
+            raw_mask_foreground_pixels=raw_pixel_counts,
+            mask_component_counts=component_counts,
             inference_seconds=elapsed,
             peak_cuda_memory_bytes=peak_memory,
         )

@@ -1,4 +1,4 @@
-from clickvos.anomaly import detect_reactivation
+from clickvos.anomaly import detect_fragmentation, detect_reactivation
 
 
 def test_detects_cp02_style_long_reactivation() -> None:
@@ -17,3 +17,10 @@ def test_ignores_short_dropout() -> None:
 def test_initial_empty_frames_are_not_reactivation() -> None:
     counts = {"00000.png": 0, "00001.png": 0, "00002.png": 100}
     assert detect_reactivation(counts) == []
+
+
+def test_detects_fragmented_mask() -> None:
+    anomalies = detect_fragmentation({"00000.png": 1, "00001.png": 3})
+    assert len(anomalies) == 1
+    assert anomalies[0].frame_index == 1
+    assert anomalies[0].evidence["component_count"] == 3

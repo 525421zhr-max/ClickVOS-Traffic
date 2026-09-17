@@ -31,6 +31,7 @@ def main() -> None:
     parser.add_argument("--negative", action="append", default=[], type=point)
     parser.add_argument("--category", default="vehicle")
     parser.add_argument("--object-id", default=1, type=int)
+    parser.add_argument("--keep-largest-component", action="store_true")
     parser.add_argument("--app-config", default=Path("configs/default.json"), type=Path)
     parser.add_argument(
         "--config", default="configs/sam2.1/sam2.1_hiera_t.yaml"
@@ -61,7 +62,13 @@ def main() -> None:
             + [PromptPoint(x, y, False) for x, y in args.negative]
         ),
     )
-    propagation = engine.propagate_single(frames, prompt, masks_dir, overlays_dir)
+    propagation = engine.propagate_single(
+        frames,
+        prompt,
+        masks_dir,
+        overlays_dir,
+        keep_largest_component_only=args.keep_largest_component,
+    )
 
     result = {
         "video": str(args.video),
@@ -80,6 +87,9 @@ def main() -> None:
         "prompt_points_xy": [[item.x, item.y] for item in prompt.points],
         "prompt_labels": [1 if item.positive else 0 for item in prompt.points],
         "mask_foreground_pixels": propagation.mask_foreground_pixels,
+        "raw_mask_foreground_pixels": propagation.raw_mask_foreground_pixels,
+        "mask_component_counts": propagation.mask_component_counts,
+        "postprocessing": propagation.postprocessing,
         "extraction_seconds": extraction_seconds,
         "model_load_seconds": model_load_seconds,
         "inference_seconds": propagation.inference_seconds,
