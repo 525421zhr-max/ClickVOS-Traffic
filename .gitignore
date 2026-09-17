@@ -33,6 +33,8 @@ logs/*
 *.mp4
 *.mov
 *.avi
+*.webm
+*.mkv
 
 # Keep directory placeholders
 !data/raw/.gitkeep

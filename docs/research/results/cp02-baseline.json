@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/CP-02-traffic-video-propagation.md",
+  "checkpoint": "CP-02",
+  "date": "2026-09-15",
+  "status": "completed_with_documented_failure_case",
+  "input": {
+    "source_id": "traffic-001",
+    "license": "CC BY 3.0",
+    "frames": 50,
+    "width": 960,
+    "height": 540,
+    "fps": 10,
+    "duration_seconds": 5
+  },
+  "model": {
+    "name": "SAM2.1 Hiera Tiny",
+    "pytorch": "2.11.0+cu128",
+    "device": "NVIDIA GeForce RTX 5060 Laptop GPU"
+  },
+  "prompt": {
+    "frame_index": 0,
+    "object_id": 1,
+    "positive_points": [[520, 370]],
+    "negative_points": []
+  },
+  "measurements": {
+    "extracted_frames": 50,
+    "propagation_yields": 50,
+    "saved_masks": 50,
+    "saved_overlays": 50,
+    "frame_extraction_seconds": 0.587657951,
+    "model_load_seconds": 1.090924864,
+    "inference_seconds": 7.463497327,
+    "effective_fps": 6.699272179,
+    "peak_cuda_allocated_bytes": 602537472
+  },
+  "observations": {
+    "empty_mask_frame_range_inclusive": [16, 45],
+    "incorrect_reactivation_frame": 46,
+    "foreground_pixels_frames_46_to_49": [1552, 1747, 1915, 1915],
+    "interpretation": "The mask reactivated on a different vehicle after the original target left the frame."
+  },
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "limitations": [
+    "No frame-level ground truth; IoU, J and F were not calculated.",
+    "The reactivation interpretation is based on documented visual inspection."
+  ]
+}

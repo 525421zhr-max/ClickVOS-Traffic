@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/W05-mask-quality-pilot.md",
+  "checkpoint": "W05",
+  "date": "2026-09-17",
+  "status": "narrow_pass",
+  "input": {
+    "source_id": "traffic-001",
+    "frames": 50,
+    "comparison": "raw binary mask versus largest connected component"
+  },
+  "measurements": {
+    "affected_frames": [10, 12, 46, 49],
+    "removed_pixels_per_affected_frame": [1, 1, 19, 2],
+    "total_removed_pixels": 23,
+    "frame_46_raw_components": 6,
+    "frame_46_raw_pixels": 1552,
+    "frame_46_filtered_pixels": 1533,
+    "inference_seconds": 8.248250455,
+    "effective_fps": 6.061891582,
+    "peak_cuda_allocated_bytes": 602537472,
+    "preview_bytes": 466507
+  },
+  "conclusion": "Largest-component filtering removed small disconnected spill but did not remove the main incorrect reactivation at frame 46.",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "limitations": [
+    "No frame-level ground truth; IoU, J and F were not calculated.",
+    "Largest-component filtering may remove valid disconnected target regions.",
+    "The yellow overlay boundary improves readability but does not change model accuracy."
+  ]
+}

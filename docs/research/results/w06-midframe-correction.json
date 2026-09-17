@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/W06-web-midframe-correction.md",
+  "checkpoint": "W06",
+  "date": "2026-09-17",
+  "status": "engineering_pass_quality_partial_pass",
+  "input": {
+    "source_id": "traffic-001",
+    "initial_positive_point": [520, 370],
+    "correction_frame": 46,
+    "correction_negative_point": [480, 350]
+  },
+  "measurements": {
+    "frame_46_pixels_before": 1533,
+    "frame_46_pixels_after": 0,
+    "repropagated_frames": 4,
+    "repropagation_seconds": 0.388963487,
+    "foreground_pixels_frames_46_to_49_after_correction": [0, 1743, 1915, 1916],
+    "connected_components_frames_46_to_49_after_correction": [0, 1, 1, 2]
+  },
+  "conclusion": "The negative point suppressed the incorrect mask on frame 46, but the incorrect target reappeared on frame 47; one correction did not permanently stop identity drift.",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "limitations": [
+    "No frame-level ground truth; IoU, J and F were not calculated.",
+    "Engineering workflow completion is not evidence that identity drift is solved."
+  ]
+}
