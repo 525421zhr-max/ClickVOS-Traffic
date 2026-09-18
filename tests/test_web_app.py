@@ -18,6 +18,7 @@ from clickvos.web_app import (
     _restore_guarded_candidate_masks,
     _runtime_report,
     _save_runtime_prediction,
+    _undo_guarded_candidate_masks,
     build_demo,
 )
 
@@ -28,6 +29,7 @@ def test_gradio_demo_builds_with_expected_title() -> None:
     config = demo.get_config_file()
     assert config["title"] == "ClickVOS Traffic"
     labels = {component.get("props", {}).get("label") for component in config["components"]}
+    values = {component.get("props", {}).get("value") for component in config["components"]}
     assert {
         "交通视频", "目标类别", "分割预览", "运行结果与异常",
         "修正帧号（从 0 开始）", "点击该帧添加修正提示",
@@ -35,6 +37,7 @@ def test_gradio_demo_builds_with_expected_title() -> None:
         "当前目标", "目标与提示点统计", "标注结果包（ZIP）",
         "待复核异常帧",
     } <= labels
+    assert "撤销本次候选确认" in values
 
 
 def test_runtime_guard_preserves_candidate_and_writes_empty_final_mask(tmp_path: Path) -> None:
@@ -110,6 +113,20 @@ def test_runtime_guard_preserves_candidate_and_writes_empty_final_mask(tmp_path:
     confirmed_report = _runtime_report(runtime)
     assert confirmed_report["anomaly_count"] == 0
     assert confirmed_report["objects"][0]["anomalies"][0]["review_status"] == "confirmed"
+
+    suppressed = _undo_guarded_candidate_masks(runtime, 1, 4)
+    assert suppressed == [4]
+    suppressed_mask = np.asarray(Image.open(task_root / "masks" / "object_001" / "00004.png"))
+    assert int(suppressed_mask.sum()) == 0
+    assert first_object["guarded_frames"][0]["frame_index"] == 4
+    assert first_object["confirmed_reactivation_frames"] == []
+    reverted_report = _runtime_report(runtime)
+    assert reverted_report["anomaly_count"] == 1
+    assert reverted_report["objects"][0]["anomalies"][0]["review_status"] == "pending"
+    assert [action["action"] for action in reverted_report["review_actions"]] == [
+        "confirm_reactivation",
+        "undo_reactivation_confirmation",
+    ]
 
 
 def test_prompt_points_are_kept_separate_for_each_object(tmp_path: Path) -> None:

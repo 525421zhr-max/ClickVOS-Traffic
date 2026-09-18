@@ -30,6 +30,8 @@
 
 ## 周记录
 
+以下 `W01–W10` 是早期沿用的开发迭代编号，不等于十二周计划中的自然周完成度。从后续记录开始改用 `DEV-xx`，十二周进度单独按计划验收项统计。
+
 - [W01：视频输入工程底座](W01-video-input-foundation.md)（2026-09-15 提前完成）
 - [W02：配置、错误模型与素材候选](W02-config-errors-and-sources.md)（2026-09-16 提前完成）
 - [W03：SAM2 引擎、异常检测与预览导出](W03-sam2-engine-and-anomaly.md)（2026-09-16 提前完成）
@@ -40,4 +42,5 @@
 - [W08：Web 多目标交互式分割](W08-web-multi-object.md)（2026-09-17 完成）
 - [W09：多目标标注下载与 COCO RLE 导出](W09-annotation-export.md)（2026-09-17 完成）
 - [W10：异常帧定位、候选确认与重叠提示](W10-anomaly-review.md)（2026-09-18 完成）
+- [DEV-11：操作流程界面与候选确认撤销](DEV-11-interface-and-review-undo.md)（2026-09-18 完成）
 - 新一周从 [周记录模板](WEEKLY-TEMPLATE.md) 复制，实际结果必须来自命令输出或原始记录。

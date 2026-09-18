@@ -1,4 +1,4 @@
-"""Verify anomaly localization data and guarded-candidate confirmation on CP-02."""
+"""Verify anomaly review, confirmation, and undo on CP-02."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from clickvos.web_app import (
     _confirm_guarded_candidate,
     _prepare_video,
     _run_segmentation,
+    _undo_guarded_candidate_confirmation,
 )
 
 
@@ -33,6 +34,9 @@ def main() -> None:
     )
     selector = _anomaly_selector_update(initial_report)
     _, confirmed_report, status, _, _ = _confirm_guarded_candidate(session_key, 1, 46)
+    _, reverted_report, undo_status, _, _ = _undo_guarded_candidate_confirmation(
+        session_key, 1, 46
+    )
     summary = {
         "task_root": task_state["task_root"],
         "source_id": "traffic-001",
@@ -42,7 +46,12 @@ def main() -> None:
         "frame_46_pixels_after_confirmation": confirmed_report["mask_foreground_pixels"]["00046.png"],
         "confirmed_reactivations": confirmed_report["confirmed_reactivations"],
         "pending_anomalies_after_confirmation": confirmed_report["anomaly_count"],
-        "status": status,
+        "confirmation_status": status,
+        "frame_46_pixels_after_undo": reverted_report["mask_foreground_pixels"]["00046.png"],
+        "pending_anomalies_after_undo": reverted_report["anomaly_count"],
+        "active_confirmations_after_undo": reverted_report["confirmed_reactivations"],
+        "review_actions": reverted_report["review_actions"],
+        "undo_status": undo_status,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")

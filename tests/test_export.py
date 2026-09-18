@@ -110,6 +110,14 @@ def test_annotation_bundle_contains_masks_and_json_but_not_source_frames(tmp_pat
                 "postprocessing": "none",
                 "reactivation_guard_enabled": False,
                 "corrections": [],
+                "review_actions": [
+                    {
+                        "action": "undo_reactivation_confirmation",
+                        "object_id": 1,
+                        "frame_index": 1,
+                        "affected_frames": [1],
+                    }
+                ],
             }
         ),
         encoding="utf-8",
@@ -127,6 +135,7 @@ def test_annotation_bundle_contains_masks_and_json_but_not_source_frames(tmp_pat
         project = json.loads(archive.read("project.json"))
         coco = json.loads(archive.read("annotations/coco_rle.json"))
     assert project["video"]["file_name"] == "traffic.mp4"
+    assert project["review_actions"][0]["action"] == "undo_reactivation_confirmation"
     assert "/private/" not in json.dumps(project)
     assert len(coco["images"]) == 2
     assert len(coco["annotations"]) == 3

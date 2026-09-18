@@ -46,6 +46,76 @@ OBJECT_COLORS = (
     (70, 150, 255),
 )
 
+APP_CSS = """
+:root {
+  --cv-accent: #0f766e;
+  --cv-accent-strong: #115e59;
+  --cv-surface-muted: #f4f7f6;
+  --cv-border: #d7e1df;
+  --cv-text: #17211f;
+  --cv-muted: #53615e;
+  --cv-danger: #b42318;
+}
+.gradio-container {
+  max-width: 1180px !important;
+  margin: 0 auto !important;
+  color: var(--cv-text) !important;
+}
+.app-header {
+  padding: 1.5rem 0 0.5rem;
+  max-width: 72ch;
+}
+.app-header h1 {
+  margin-bottom: 0.45rem !important;
+  letter-spacing: -0.025em;
+}
+.app-header p { color: var(--cv-muted); line-height: 1.65; }
+.workflow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.5rem 0 1.25rem;
+}
+.workflow-step {
+  padding: 0.42rem 0.72rem;
+  border: 1px solid var(--cv-border);
+  border-radius: 999px;
+  background: var(--cv-surface-muted);
+  color: var(--cv-muted);
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+.workflow-step strong { color: var(--cv-accent-strong); }
+.status-strip textarea {
+  font-weight: 650 !important;
+  color: var(--cv-accent-strong) !important;
+  background: #ecf8f5 !important;
+  border-color: #9bd4ca !important;
+}
+.step-panel {
+  margin-bottom: 0.8rem;
+  border-color: var(--cv-border) !important;
+}
+.section-note { max-width: 75ch; color: var(--cv-muted); }
+.danger-soft button {
+  color: var(--cv-danger) !important;
+  border-color: #efb0aa !important;
+  background: #fff7f6 !important;
+}
+.danger-soft button:hover { background: #fdecea !important; }
+.secondary-action button { border-color: var(--cv-border) !important; }
+button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.28) !important;
+  outline-offset: 2px !important;
+}
+::selection { background: #bce8df; color: #102522; }
+@media (max-width: 760px) {
+  .gradio-container { padding-inline: 0.75rem !important; }
+  .workflow-step { flex: 1 1 auto; text-align: center; }
+  .app-header { padding-top: 0.75rem; }
+}
+"""
+
 
 def _friendly_error(exc: Exception) -> gr.Error:
     if isinstance(exc, ClickVOSError):
@@ -423,8 +493,16 @@ def _runtime_report(runtime: dict[str, Any]) -> dict[str, Any]:
         "reactivation_guard_minimum_empty_frames": 3,
         "guarded_frames": [dict(entry) for entry in guarded_frames],
         "confirmed_reactivations": [
-            {**entry, "restored_frames": list(entry["restored_frames"])}
+            {
+                "object_id": entry["object_id"],
+                "frame_index": entry["frame_index"],
+                "restored_frames": list(entry["restored_frames"]),
+            }
             for entry in runtime.get("confirmed_reactivations", [])
+        ],
+        "review_actions": [
+            {**entry, "affected_frames": list(entry["affected_frames"])}
+            for entry in runtime.get("review_actions", [])
         ],
         "overlap_event_count": len(overlap_events),
         "overlap_events": overlap_events,
@@ -532,6 +610,7 @@ def _run_multi_segmentation(
             "objects": object_runtimes,
             "corrections": [],
             "confirmed_reactivations": [],
+            "review_actions": [],
             "guard_reactivation": guard_reactivation,
         }
         started = time.perf_counter()
@@ -627,11 +706,15 @@ def _restore_guarded_candidate_masks(
     runtime: dict[str, Any], object_id: int, start_frame: int
 ) -> list[int]:
     item = runtime["objects"][object_id]
+    guarded_entries = [
+        dict(entry)
+        for entry in item["guarded_frames"]
+        if int(entry["frame_index"]) >= start_frame
+    ]
     restored = sorted(
         {
             int(entry["frame_index"])
-            for entry in item["guarded_frames"]
-            if int(entry["frame_index"]) >= start_frame
+            for entry in guarded_entries
         }
     )
     if not restored:
@@ -659,7 +742,100 @@ def _restore_guarded_candidate_masks(
     if start_frame not in confirmations:
         confirmations.append(start_frame)
     runtime.setdefault("confirmed_reactivations", []).append(
-        {"object_id": object_id, "frame_index": start_frame, "restored_frames": restored}
+        {
+            "object_id": object_id,
+            "frame_index": start_frame,
+            "restored_frames": restored,
+            "guarded_entries": guarded_entries,
+        }
+    )
+    runtime.setdefault("review_actions", []).append(
+        {
+            "action": "confirm_reactivation",
+            "object_id": object_id,
+            "frame_index": start_frame,
+            "affected_frames": list(restored),
+        }
+    )
+    return restored
+
+
+def _undo_guarded_candidate_masks(
+    runtime: dict[str, Any], object_id: int, start_frame: int
+) -> list[int]:
+    confirmations = runtime.get("confirmed_reactivations", [])
+    match_index = next(
+        (
+            index
+            for index in range(len(confirmations) - 1, -1, -1)
+            if int(confirmations[index]["object_id"]) == object_id
+            and int(confirmations[index]["frame_index"]) == start_frame
+        ),
+        None,
+    )
+    if match_index is None:
+        raise ValueError("该目标和帧没有可以撤销的候选确认。")
+
+    confirmation = confirmations[match_index]
+    restored = [int(frame_index) for frame_index in confirmation["restored_frames"]]
+    item = runtime["objects"][object_id]
+    object_dir = runtime["task_root"] / "masks" / f"object_{object_id:03d}"
+    candidate_dir = (
+        runtime["task_root"]
+        / "review_candidates"
+        / f"object_{object_id:03d}"
+        / "masks"
+    )
+    missing = [
+        candidate_dir / f"{frame_index:05d}.png"
+        for frame_index in restored
+        if not (candidate_dir / f"{frame_index:05d}.png").is_file()
+    ]
+    if missing:
+        raise FileNotFoundError(f"missing review candidate: {missing[0]}")
+    confirmations.pop(match_index)
+    for frame_index in restored:
+        name = f"{frame_index:05d}.png"
+        source = candidate_dir / name
+        candidate = np.asarray(Image.open(source).convert("L"))
+        empty = np.zeros_like(candidate, dtype=np.uint8)
+        Image.fromarray(empty).save(object_dir / name)
+        if object_id == 1:
+            Image.fromarray(empty).save(runtime["task_root"] / "masks" / name)
+        item["mask_foreground_pixels"][name] = 0
+        item["mask_component_counts"][name] = 0
+        _write_composite_overlay(runtime, frame_index)
+
+    guarded_entries = confirmation.get("guarded_entries") or [
+        {
+            "object_id": object_id,
+            "frame_index": frame_index,
+            "candidate_pixels": item["model_mask_foreground_pixels"][f"{frame_index:05d}.png"],
+            "triggered_guard": frame_index == start_frame,
+            "preceding_empty_frames": 3 if frame_index == start_frame else 0,
+        }
+        for frame_index in restored
+    ]
+    existing_frames = {int(entry["frame_index"]) for entry in item["guarded_frames"]}
+    item["guarded_frames"].extend(
+        dict(entry)
+        for entry in guarded_entries
+        if int(entry["frame_index"]) not in existing_frames
+    )
+    item["guarded_frames"].sort(key=lambda entry: int(entry["frame_index"]))
+    item["confirmed_reactivation_frames"] = [
+        frame_index
+        for frame_index in item.get("confirmed_reactivation_frames", [])
+        if int(frame_index) != start_frame
+    ]
+    item.get("guard_confirmed_frames", set()).discard(start_frame)
+    runtime.setdefault("review_actions", []).append(
+        {
+            "action": "undo_reactivation_confirmation",
+            "object_id": object_id,
+            "frame_index": start_frame,
+            "affected_frames": list(restored),
+        }
     )
     return restored
 
@@ -686,6 +862,34 @@ def _confirm_guarded_candidate(
         status = (
             f"已确认目标 {selected_object_id} 在第 {index} 帧重新出现，"
             f"恢复 {len(restored)} 帧候选掩码。"
+        )
+        return preview, report, status, overlay, _anomaly_selector_update(report)
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+
+
+def _undo_guarded_candidate_confirmation(
+    session_key: str | None,
+    object_id: int | float | None,
+    frame_index: int | float,
+) -> tuple[str, dict[str, Any], str, str, dict[str, Any]]:
+    if not session_key or object_id is None:
+        raise gr.Error("请保留刚才确认的目标和帧，再执行撤销。")
+    with _SESSION_LOCK:
+        runtime = _ACTIVE_SESSIONS.get(session_key)
+    if runtime is None:
+        raise gr.Error("当前任务状态已释放，请重新运行传播。")
+    selected_object_id = int(object_id)
+    index = int(frame_index)
+    if selected_object_id not in runtime["objects"]:
+        raise gr.Error("目标不存在。")
+    try:
+        restored = _undo_guarded_candidate_masks(runtime, selected_object_id, index)
+        preview, report = _write_runtime_outputs(runtime)
+        overlay = str(runtime["task_root"] / "overlays" / f"{index:05d}.jpg")
+        status = (
+            f"已撤销目标 {selected_object_id} 在第 {index} 帧的候选确认，"
+            f"重新拦截 {len(restored)} 帧候选掩码。"
         )
         return preview, report, status, overlay, _anomaly_selector_update(report)
     except Exception as exc:
@@ -826,35 +1030,75 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
     with gr.Blocks(title="ClickVOS Traffic") as demo:
         gr.Markdown(
             "# ClickVOS Traffic\n"
-            "上传许可清晰的交通视频，在首帧用正点和负点选择目标，然后运行 SAM2 传播。"
-            "禁止上传私人照片、人像测试素材或未经授权的视频。"
+            "面向交通视频的交互式分割与半自动标注工具。上传许可清晰的视频，"
+            "通过正负点选择目标，复核传播异常后导出标准标注。\n\n"
+            "仅使用自有或许可证明确的交通素材；禁止上传私人照片、人像测试素材或未经授权的视频。",
+            elem_classes=["app-header"],
+        )
+        gr.HTML(
+            "<nav class='workflow-steps' aria-label='任务流程'>"
+            "<span class='workflow-step'><strong>1</strong> 准备视频</span>"
+            "<span class='workflow-step'><strong>2</strong> 标记目标</span>"
+            "<span class='workflow-step'><strong>3</strong> 运行传播</span>"
+            "<span class='workflow-step'><strong>4</strong> 复核修正</span>"
+            "<span class='workflow-step'><strong>5</strong> 导出标注</span>"
+            "</nav>"
         )
         task_state = gr.State()
         objects_state = gr.State([])
         first_frame_path = gr.State()
         session_key = gr.State()
         config_value = gr.State(str(config_path))
-        with gr.Row():
-            with gr.Column():
+
+        status = gr.Textbox(
+            label="当前状态",
+            value="等待上传交通视频。",
+            interactive=False,
+            elem_classes=["status-strip"],
+        )
+        with gr.Accordion("1. 准备交通视频", open=True, elem_classes=["step-panel"]):
+            with gr.Row(equal_height=False):
                 video = gr.Video(label="交通视频", sources=["upload"])
-                checkpoint = gr.Textbox(label="SAM2 权重路径", value=checkpoint_default, type="text")
-                category = gr.Dropdown(
-                    choices=[(label, key) for key, label in labels.items()],
-                    value="vehicle",
-                    label="目标类别",
-                )
-                prepare = gr.Button("1. 抽帧并显示首帧", variant="primary")
-            with gr.Column():
-                frame = gr.Image(label="2. 为多个目标添加提示", interactive=False)
-                with gr.Row():
-                    add_object = gr.Button("新建目标", variant="primary")
-                    delete_object = gr.Button("删除当前目标")
-                current_object = gr.Dropdown(choices=[], label="当前目标", interactive=True)
-                prompt_kind = gr.Radio(["正点", "负点"], value="正点", label="当前点击类型")
-                gr.Markdown(
-                    "先选择类别并新建目标，再在目标内部添加正点；切换目标后继续点击。"
-                    "若掩码可能覆盖邻近物体，可在邻近物体内部为当前目标添加负点。"
-                )
+                with gr.Column():
+                    gr.Markdown(
+                        "上传后先抽帧并检查首帧。建议使用 5–10 秒、镜头稳定、许可证明确的交通视频。",
+                        elem_classes=["section-note"],
+                    )
+                    checkpoint = gr.Textbox(
+                        label="SAM2 权重路径", value=checkpoint_default, type="text"
+                    )
+                    prepare = gr.Button("抽帧并显示首帧", variant="primary")
+
+        with gr.Accordion("2. 标记一个或多个目标", open=True, elem_classes=["step-panel"]):
+            with gr.Row(equal_height=False):
+                frame = gr.Image(label="首帧提示区域", interactive=False)
+                with gr.Column():
+                    gr.Markdown(
+                        "为当前目标至少添加一个正点；如果掩码容易覆盖邻近物体，"
+                        "在邻近物体内部添加负点。切换目标后可继续标记。",
+                        elem_classes=["section-note"],
+                    )
+                    category = gr.Dropdown(
+                        choices=[(label, key) for key, label in labels.items()],
+                        value="vehicle",
+                        label="目标类别",
+                    )
+                    with gr.Row():
+                        add_object = gr.Button("新建目标", variant="primary")
+                        delete_object = gr.Button(
+                            "删除当前目标", elem_classes=["danger-soft"]
+                        )
+                    current_object = gr.Dropdown(choices=[], label="当前目标", interactive=True)
+                    prompt_kind = gr.Radio(["正点", "负点"], value="正点", label="当前点击类型")
+                    clear = gr.Button("清空当前目标提示点", elem_classes=["secondary-action"])
+                    object_table = gr.JSON(label="目标与提示点统计")
+
+        with gr.Accordion("传播设置", open=False, elem_classes=["step-panel"]):
+            gr.Markdown(
+                "默认设置优先减少碎片和目标离场后的错误重现。只有进行对照实验时才建议关闭。",
+                elem_classes=["section-note"],
+            )
+            with gr.Row():
                 keep_largest = gr.Checkbox(
                     value=True,
                     label="只保留最大连通区域（减少不相连的串目标）",
@@ -863,22 +1107,18 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                     value=True,
                     label="重新激活保护（目标连续消失 3 帧后暂停可疑掩码）",
                 )
-                object_table = gr.JSON(label="目标与提示点统计")
-                clear = gr.Button("清空当前目标提示点")
         run = gr.Button("3. 运行 SAM2 传播", variant="primary")
-        status = gr.Textbox(label="状态", interactive=False)
-        with gr.Row():
+
+        with gr.Accordion("3. 传播结果", open=True, elem_classes=["step-panel"]):
             preview = gr.Video(label="分割预览")
-            report = gr.JSON(label="运行结果与异常")
-        with gr.Row():
-            export_bundle = gr.Button("生成标注下载包", variant="primary")
-            download = gr.File(label="标注结果包（ZIP）", interactive=False)
-        with gr.Accordion("4. 中间帧修正", open=True):
+            with gr.Accordion("查看完整运行报告", open=False):
+                report = gr.JSON(label="运行结果与异常")
+
+        with gr.Accordion("4. 复核异常并修正", open=True, elem_classes=["step-panel"]):
             gr.Markdown(
-                "根据异常报告或预览输入帧号，载入该帧后添加正点或负点。"
-                "修正会从该帧重新传播到视频结尾。重新激活保护开启时，"
-                "被抑制的 SAM2 候选掩码保存在任务目录的 review_candidates 中供核查；"
-                "正点表示确认目标重新出现，负点则继续保持拦截。"
+                "优先从待复核列表定位异常。确认候选会恢复被保护机制拦截的掩码；"
+                "如果判断错误，可以立即撤销。使用正负点修正时，系统会从该帧重新传播到结尾。",
+                elem_classes=["section-note"],
             )
             with gr.Row():
                 anomaly_selector = gr.Dropdown(
@@ -894,9 +1134,24 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             correction_kind = gr.Radio(["正点", "负点"], value="负点", label="修正点击类型")
             correction_table = gr.JSON(label="本次修正点")
             with gr.Row():
-                clear_correction = gr.Button("清空修正点")
+                clear_correction = gr.Button(
+                    "清空修正点", elem_classes=["secondary-action"]
+                )
                 apply_correction = gr.Button("应用修正并重新传播", variant="primary")
                 confirm_candidate = gr.Button("确认候选目标重新出现")
+                undo_confirmation = gr.Button(
+                    "撤销本次候选确认", elem_classes=["danger-soft"]
+                )
+
+        with gr.Accordion("5. 导出标注", open=True, elem_classes=["step-panel"]):
+            gr.Markdown(
+                "导出包包含逐对象 PNG 掩码、合成预览视频、ClickVOS 项目 JSON 和 COCO RLE；"
+                "不会打包原视频和抽帧图片。",
+                elem_classes=["section-note"],
+            )
+            with gr.Row():
+                export_bundle = gr.Button("生成标注下载包", variant="primary")
+                download = gr.File(label="标注结果包（ZIP）", interactive=False)
 
         prepare.click(
             _prepare_multi_video,
@@ -981,11 +1236,21 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             inputs=[session_key, current_object, correction_index],
             outputs=[preview, report, status, correction_frame, anomaly_selector],
         )
+        undo_confirmation.click(
+            _undo_guarded_candidate_confirmation,
+            inputs=[session_key, current_object, correction_index],
+            outputs=[preview, report, status, correction_frame, anomaly_selector],
+        )
     return demo
 
 
 def main() -> None:
-    build_demo().launch(server_name="127.0.0.1", server_port=7860, show_error=True)
+    build_demo().launch(
+        server_name="127.0.0.1",
+        server_port=7860,
+        show_error=True,
+        css=APP_CSS,
+    )
 
 
 if __name__ == "__main__":

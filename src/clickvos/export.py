@@ -213,6 +213,7 @@ def build_project_manifest(task_root: Path, result: dict[str, Any], output: Path
         "objects": objects,
         "corrections": result.get("corrections", []),
         "confirmed_reactivations": result.get("confirmed_reactivations", []),
+        "review_actions": result.get("review_actions", []),
         "overlap_events": result.get("overlap_events", []),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
