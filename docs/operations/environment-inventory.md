@@ -1,4 +1,4 @@
-# 环境清单（待填写）
+# 开发环境
 
 | 项目 | 实际值 |
 | --- | --- |
@@ -10,9 +10,9 @@
 | Python | 3.12.3；虚拟环境 `/home/clickvos/.venvs/clickvos` |
 | PyTorch / CUDA | PyTorch 2.11.0+cu128；CUDA runtime 12.8；torchvision 0.26.0+cu128 |
 | ffmpeg | 6.1.1-3ubuntu5 |
-| SAM2 提交版本与权重来源 | 待从 Meta 官方仓库固定提交；权重不纳入 Git |
-
-填完此表、附上环境检测命令输出后，创建 CP-01 的前置提交。
+| SAM2 | Meta SAM2 提交 `2b90b9f5ceec907a1c18123530e92e794ad901a4` |
+| 模型权重 | SAM2.1 Hiera Tiny；来自 ModelScope `facebook/sam2.1-hiera-tiny` 镜像 |
+| 权重 SHA-256 | `7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69` |
 
 ## 版本选择依据
 
@@ -28,6 +28,8 @@
 - 2048×2048 CUDA 矩阵乘法：成功
 - 可重复验证命令：`~/.venvs/clickvos/bin/python scripts/verify_environment.py`
 
-## 当前未完成项
+## SAM2 安装说明
 
-Meta SAM2 官方 Git 仓库的直连在当前网络下失败；codeload 压缩包也发生提前断流，损坏文件未用于安装。SAM2 尚未计入本环境 checkpoint。
+安装时 GitHub 主站、Raw 和 Hugging Face 均出现过 HTTPS 超时，因此源码通过可达代理从 Meta 官方仓库稀疏克隆，并固定到上表提交。权重改从 ModelScope 镜像下载，文件大小和 SHA-256 与 Git LFS 元数据一致。
+
+SAM2 的可选 `_C` 扩展未编译。核心提示分割和视频传播仍使用 CUDA；运行时会出现一条跳过孔洞后处理的警告。完整安装与验证命令见 [CP-01](../checkpoints/CP-01-sam2-minimum-validation.md)。

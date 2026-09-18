@@ -28,19 +28,20 @@
 - 实验中：每组实验结束即记录配置、数据版本、指标与失败样例。
 - 推送前：确认 `.gitignore` 生效，尤其是模型、视频、日志和 `.env` 未被纳入提交。
 
-## 周记录
+## 开发记录
 
 以下 `W01–W10` 是早期沿用的开发迭代编号，不等于十二周计划中的自然周完成度。从后续记录开始改用 `DEV-xx`，十二周进度单独按计划验收项统计。
 
-- [W01：视频输入工程底座](W01-video-input-foundation.md)（2026-09-15 提前完成）
-- [W02：配置、错误模型与素材候选](W02-config-errors-and-sources.md)（2026-09-16 提前完成）
-- [W03：SAM2 引擎、异常检测与预览导出](W03-sam2-engine-and-anomaly.md)（2026-09-16 提前完成）
-- [W04：多对象、中间帧修正与 Web 界面](W04-multi-object-correction-web.md)（2026-09-16 提前完成）
-- [W05：掩码清晰度与串目标诊断](W05-mask-quality-pilot.md)（2026-09-17 完成）
-- [W06：Web 中间帧修正闭环](W06-web-midframe-correction.md)（2026-09-17 完成）
-- [W07：目标重新激活保护](W07-reactivation-guard.md)（2026-09-17 完成）
-- [W08：Web 多目标交互式分割](W08-web-multi-object.md)（2026-09-17 完成）
-- [W09：多目标标注下载与 COCO RLE 导出](W09-annotation-export.md)（2026-09-17 完成）
-- [W10：异常帧定位、候选确认与重叠提示](W10-anomaly-review.md)（2026-09-18 完成）
-- [DEV-11：操作流程界面与候选确认撤销](DEV-11-interface-and-review-undo.md)（2026-09-18 完成）
-- 新一周从 [周记录模板](WEEKLY-TEMPLATE.md) 复制，实际结果必须来自命令输出或原始记录。
+- [W01：视频输入工程底座](W01-video-input-foundation.md)（2026-09-15）
+- [W02：配置、错误模型与素材候选](W02-config-errors-and-sources.md)（2026-09-16）
+- [W03：SAM2 引擎、异常检测与预览导出](W03-sam2-engine-and-anomaly.md)（2026-09-16）
+- [W04：多对象、中间帧修正与 Web 界面](W04-multi-object-correction-web.md)（2026-09-16）
+- [W05：掩码清晰度与串目标诊断](W05-mask-quality-pilot.md)（2026-09-17）
+- [W06：Web 中间帧修正闭环](W06-web-midframe-correction.md)（2026-09-17）
+- [W07：目标重新激活保护](W07-reactivation-guard.md)（2026-09-17）
+- [W08：Web 多目标交互式分割](W08-web-multi-object.md)（2026-09-17）
+- [W09：多目标标注下载与 COCO RLE 导出](W09-annotation-export.md)（2026-09-17）
+- [W10：异常帧定位、候选确认与重叠提示](W10-anomaly-review.md)（2026-09-18）
+- [DEV-11：操作流程界面与候选确认撤销](DEV-11-interface-and-review-undo.md)（2026-09-18）
+
+新记录从 [模板](WEEKLY-TEMPLATE.md) 复制。实验数字必须能回到命令输出或原始文件。
