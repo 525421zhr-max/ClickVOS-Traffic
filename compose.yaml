@@ -1,0 +1,20 @@
+services:
+  clickvos:
+    build:
+      context: .
+      args:
+        SAM2_COMMIT: 2b90b9f5ceec907a1c18123530e92e794ad901a4
+    image: clickvos-traffic:0.1.0
+    restart: unless-stopped
+    gpus: all
+    ports:
+      - "127.0.0.1:${CLICKVOS_PORT:-7860}:7860"
+    environment:
+      CLICKVOS_HOST: 0.0.0.0
+      CLICKVOS_PORT: 7860
+      CLICKVOS_CONFIG: /app/configs/default.json
+      CLICKVOS_CHECKPOINT: /models/sam2.1_hiera_tiny.pt
+    volumes:
+      - ${CLICKVOS_MODEL_DIR:-./models}:/models:ro
+      - ./outputs/tasks:/app/outputs/tasks
+    shm_size: 2gb

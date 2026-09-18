@@ -129,7 +129,12 @@ def _prepare_video(video_path: str | None, config_path: str) -> tuple[str, dict[
         raise gr.Error("请先上传交通视频。")
     try:
         config = load_config(Path(config_path))
-        layout, metadata, frames = prepare_task(Path(video_path), config.tasks_root)
+        layout, metadata, frames = prepare_task(
+            Path(video_path),
+            config.tasks_root,
+            max_bytes=config.video.max_upload_bytes,
+            quality=config.video.jpeg_quality,
+        )
         state = {
             "task_root": str(layout.root),
             "frames": [str(frame) for frame in frames],
@@ -1354,12 +1359,30 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
     return demo
 
 
+def _launch_options() -> dict[str, str | int | bool]:
+    """Read the small set of safe deployment overrides from the environment."""
+    host = os.environ.get("CLICKVOS_HOST", "127.0.0.1").strip()
+    if not host:
+        raise ValueError("CLICKVOS_HOST 不能为空")
+    raw_port = os.environ.get("CLICKVOS_PORT", "7860").strip()
+    try:
+        port = int(raw_port)
+    except ValueError as exc:
+        raise ValueError("CLICKVOS_PORT 必须是整数") from exc
+    if not 1 <= port <= 65535:
+        raise ValueError("CLICKVOS_PORT 必须在 1 到 65535 之间")
+    return {
+        "server_name": host,
+        "server_port": port,
+        "show_error": True,
+        "css": APP_CSS,
+    }
+
+
 def main() -> None:
-    build_demo().launch(
-        server_name="127.0.0.1",
-        server_port=7860,
-        show_error=True,
-        css=APP_CSS,
+    config_path = Path(os.environ.get("CLICKVOS_CONFIG", "configs/default.json"))
+    build_demo(config_path).launch(
+        **_launch_options(),
     )
 
 

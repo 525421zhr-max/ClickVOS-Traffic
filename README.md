@@ -4,7 +4,7 @@
 
 现在可以上传短视频，在首帧用正点和负点选择车辆、行人或非机动车，再把掩码传播到后续帧。如果传播过程中出现目标丢失、错误重现或多个掩码重叠，界面会把相应帧列出来，用户可以检查并补点修正。
 
-项目仍处于原型阶段。功能已经可以完整跑通，但公开数据评估、十人试用、Docker 和云端部署还没有完成。
+项目仍处于原型阶段。功能已经可以完整跑通，但公开数据评估、十人试用和云端部署还没有完成。Docker 配置已经加入仓库，尚未完成实机镜像构建验证。
 
 ## 已实现
 
@@ -42,6 +42,19 @@ python -m clickvos.web_app
 6. 生成标注下载包。
 
 每个目标至少需要一个正点。当前版本是本地单用户程序，同时只保留一个活动推理会话。
+
+## Docker（待实机验证）
+
+仓库已经提供 `Dockerfile`、`compose.yaml` 和 `.env.example`。权重从宿主机只读挂载，不会写入镜像：
+
+```bash
+cp .env.example .env
+# 编辑 .env 中的 CLICKVOS_MODEL_DIR
+docker compose build
+docker compose up -d
+```
+
+当前开发机没有安装 Docker，因此这里只表示部署配置已经准备好，不表示镜像已经构建成功。完整前置条件和验证步骤见 [`docs/operations/docker-deployment.md`](docs/operations/docker-deployment.md)。
 
 ## 命令行示例
 
@@ -89,7 +102,7 @@ python -m clickvos.export bundle outputs/tasks/<task-id>
 - 当前测试素材较少，异常规则的命中率和误报率还不能下结论。
 - 尚未在带逐帧真值的公开子集上计算 J&F。
 - 历史任务目前只能预览和再次导出，尚不能恢复成可继续补点的 SAM2 会话。
-- 尚未完成自动清理、Docker 和云端部署。
+- 尚未完成自动清理、Docker 实机构建和云端部署。
 
 ## 数据使用
 

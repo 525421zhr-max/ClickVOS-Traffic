@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_engineering_summary",
+  "source_checkpoint": "docs/checkpoints/DEV-13-container-foundation.md",
+  "checkpoint": "DEV-13",
+  "date": "2026-09-18",
+  "status": "container_configuration_ready_not_built",
+  "measurements": {
+    "automated_tests": "39 passed in 6.12s",
+    "deployment_preflight_passed": true,
+    "python": "3.12.3",
+    "torch": "2.11.0+cu128",
+    "torch_cuda_runtime": "12.8",
+    "cuda_available": true,
+    "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "ffmpeg": "/usr/bin/ffmpeg",
+    "ffprobe": "/usr/bin/ffprobe",
+    "checkpoint_sha256": "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69",
+    "docker_cli_available": false,
+    "container_image_built": false,
+    "cloud_gpu_validated": false
+  },
+  "conclusion": "The application now has a reproducible container configuration and deployment preflight path, but no container or cloud execution result is claimed yet.",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "limitations": [
+    "Docker is not installed on the current development machine.",
+    "The base image and pinned SAM2 clone still require a real image build.",
+    "The application still keeps one active inference session per process."
+  ]
+}

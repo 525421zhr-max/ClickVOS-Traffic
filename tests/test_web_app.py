@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import numpy as np
 import gradio as gr
+import pytest
 from PIL import Image
 
 from clickvos.anomaly import ReactivationGuard
@@ -18,6 +19,7 @@ from clickvos.web_app import (
     _export_active_task,
     _export_history_task,
     _load_selected_anomaly,
+    _launch_options,
     _open_history_task,
     _refresh_task_history,
     _restore_guarded_candidate_masks,
@@ -26,6 +28,28 @@ from clickvos.web_app import (
     _undo_guarded_candidate_masks,
     build_demo,
 )
+
+
+def test_launch_options_default_to_local_only(monkeypatch) -> None:
+    monkeypatch.delenv("CLICKVOS_HOST", raising=False)
+    monkeypatch.delenv("CLICKVOS_PORT", raising=False)
+    options = _launch_options()
+    assert options["server_name"] == "127.0.0.1"
+    assert options["server_port"] == 7860
+
+
+def test_launch_options_allow_container_binding(monkeypatch) -> None:
+    monkeypatch.setenv("CLICKVOS_HOST", "0.0.0.0")
+    monkeypatch.setenv("CLICKVOS_PORT", "8080")
+    options = _launch_options()
+    assert options["server_name"] == "0.0.0.0"
+    assert options["server_port"] == 8080
+
+
+def test_launch_options_reject_invalid_port(monkeypatch) -> None:
+    monkeypatch.setenv("CLICKVOS_PORT", "70000")
+    with pytest.raises(ValueError, match="1 到 65535"):
+        _launch_options()
 
 
 def test_gradio_demo_builds_with_expected_title() -> None:
