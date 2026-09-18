@@ -11,7 +11,11 @@ from clickvos.web_app import (
     _ACTIVE_SESSIONS,
     _add_object,
     _add_object_click,
+    _anomaly_selector_update,
+    _detect_mask_overlaps,
     _export_active_task,
+    _load_selected_anomaly,
+    _restore_guarded_candidate_masks,
     _runtime_report,
     _save_runtime_prediction,
     build_demo,
@@ -29,6 +33,7 @@ def test_gradio_demo_builds_with_expected_title() -> None:
         "修正帧号（从 0 开始）", "点击该帧添加修正提示",
         "重新激活保护（目标连续消失 3 帧后暂停可疑掩码）",
         "当前目标", "目标与提示点统计", "标注结果包（ZIP）",
+        "待复核异常帧",
     } <= labels
 
 
@@ -91,6 +96,20 @@ def test_runtime_guard_preserves_candidate_and_writes_empty_final_mask(tmp_path:
     report = _runtime_report(runtime)
     assert report["object_count"] == 2
     assert [item["object_id"] for item in report["objects"]] == [1, 2]
+    overlaps = _detect_mask_overlaps(runtime, minimum_overlap_pixels=1)
+    assert overlaps[0]["frame_index"] == 0
+    assert overlaps[0]["evidence"]["overlap_pixels"] == 8
+
+    restored = _restore_guarded_candidate_masks(runtime, 1, 4)
+    assert restored == [4]
+    restored_mask = np.asarray(Image.open(task_root / "masks" / "object_001" / "00004.png"))
+    assert int(restored_mask.sum()) > 0
+    assert report["mask_foreground_pixels"]["00004.png"] == 0
+    assert first_object["guarded_frames"] == []
+    assert first_object["confirmed_reactivation_frames"] == [4]
+    confirmed_report = _runtime_report(runtime)
+    assert confirmed_report["anomaly_count"] == 0
+    assert confirmed_report["objects"][0]["anomalies"][0]["review_status"] == "confirmed"
 
 
 def test_prompt_points_are_kept_separate_for_each_object(tmp_path: Path) -> None:
@@ -121,3 +140,22 @@ def test_web_export_callback_returns_downloadable_bundle(tmp_path: Path) -> None
         _ACTIVE_SESSIONS.pop("task", None)
     assert path == str(bundle)
     assert "标注包已生成" in status
+
+
+def test_anomaly_selector_locates_object_and_frame() -> None:
+    report = {
+        "anomalies": [
+            {
+                "object_id": 2,
+                "kind": "fragmented_mask",
+                "frame_index": 3,
+            }
+        ]
+    }
+    update = _anomaly_selector_update(report)
+    assert update["value"] == "2:3:fragmented_mask"
+    task_state = {"frames": [f"frame-{index}.jpg" for index in range(5)]}
+    loaded = _load_selected_anomaly(task_state, update["value"])
+    assert loaded[0] == 2
+    assert loaded[1] == 3
+    assert loaded[2] == "frame-3.jpg"

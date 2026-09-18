@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/W10-anomaly-review.md",
+  "checkpoint": "W10",
+  "date": "2026-09-18",
+  "status": "engineering_pass_single_reactivation_case",
+  "input": {
+    "source_id": "traffic-001",
+    "object_id": 1,
+    "review_frame": 46,
+    "action": "confirm_guarded_candidate_for_workflow_verification"
+  },
+  "measurements": {
+    "initial_pending_anomaly_count": 5,
+    "initial_selector_value": "1:46:reactivation_after_disappearance",
+    "frame_46_pixels_before_confirmation": 0,
+    "frame_46_pixels_after_confirmation": 1533,
+    "restored_frames": [46, 47, 48, 49],
+    "pending_anomaly_count_after_confirmation": 4,
+    "w08_overlap_threshold_pixels": 10,
+    "w08_overlap_event_count": 0
+  },
+  "conclusion": "The UI workflow can locate a guarded reactivation, restore its candidate masks after explicit confirmation, and preserve the confirmation in the audit record.",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "limitations": [
+    "The restored CP-02 candidate is a known wrong vehicle; confirmation tested workflow behavior, not segmentation correctness.",
+    "The real two-vehicle sample produced no positive overlap event at the 10-pixel threshold.",
+    "Confirmation currently has no dedicated undo action."
+  ]
+}

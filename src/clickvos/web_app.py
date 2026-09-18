@@ -9,6 +9,7 @@ import shutil
 import threading
 import time
 from dataclasses import asdict
+from itertools import combinations
 from pathlib import Path
 from typing import Any
 
@@ -225,6 +226,59 @@ def _clear_object_points(
     return rendered, entries, _object_summary(entries)
 
 
+def _write_composite_overlay(
+    runtime: dict[str, Any],
+    frame_index: int,
+    masks: dict[int, np.ndarray] | None = None,
+) -> Path:
+    stem = f"{frame_index:05d}"
+    effective_masks = masks or {}
+    if masks is None:
+        for object_id in runtime["objects"]:
+            mask_path = runtime["task_root"] / "masks" / f"object_{object_id:03d}" / f"{stem}.png"
+            if mask_path.is_file():
+                effective_masks[object_id] = np.asarray(Image.open(mask_path).convert("L")) > 0
+    frame = np.asarray(Image.open(runtime["frames"][frame_index]).convert("RGB"), dtype=np.float32)
+    for object_id in sorted(effective_masks):
+        mask = effective_masks[object_id]
+        color = np.asarray(OBJECT_COLORS[(object_id - 1) % len(OBJECT_COLORS)], dtype=np.float32)
+        frame[mask] = frame[mask] * 0.55 + color * 0.45
+        frame[mask_boundary(mask)] = color
+    output = runtime["task_root"] / "overlays" / f"{stem}.jpg"
+    Image.fromarray(frame.astype(np.uint8)).save(output, quality=92)
+    return output
+
+
+def _detect_mask_overlaps(
+    runtime: dict[str, Any], minimum_overlap_pixels: int = 10
+) -> list[dict[str, Any]]:
+    if minimum_overlap_pixels < 1:
+        raise ValueError("minimum_overlap_pixels must be positive")
+    events: list[dict[str, Any]] = []
+    for frame_index in range(len(runtime["frames"])):
+        name = f"{frame_index:05d}.png"
+        masks: dict[int, np.ndarray] = {}
+        for object_id in runtime["objects"]:
+            path = runtime["task_root"] / "masks" / f"object_{object_id:03d}" / name
+            if path.is_file():
+                masks[object_id] = np.asarray(Image.open(path).convert("L")) > 0
+        for first_id, second_id in combinations(sorted(masks), 2):
+            overlap_pixels = int(np.logical_and(masks[first_id], masks[second_id]).sum())
+            if overlap_pixels >= minimum_overlap_pixels:
+                events.append(
+                    {
+                        "object_id": first_id,
+                        "related_object_id": second_id,
+                        "kind": "instance_mask_overlap",
+                        "frame_index": frame_index,
+                        "severity": "medium",
+                        "message": "两个对象掩码发生重叠，请确认是否串到同一目标。",
+                        "evidence": {"overlap_pixels": overlap_pixels},
+                    }
+                )
+    return events
+
+
 def _save_runtime_prediction(
     runtime: dict[str, Any],
     prediction: Any,
@@ -306,15 +360,7 @@ def _save_runtime_prediction(
         object_runtime["mask_component_counts"][name] = final_components
         effective_masks[object_id] = final_mask
 
-    frame = np.asarray(Image.open(runtime["frames"][frame_index]).convert("RGB"), dtype=np.float32)
-    for object_id in sorted(effective_masks):
-        mask = effective_masks[object_id]
-        color = np.asarray(OBJECT_COLORS[(object_id - 1) % len(OBJECT_COLORS)], dtype=np.float32)
-        frame[mask] = frame[mask] * 0.55 + color * 0.45
-        frame[mask_boundary(mask)] = color
-    Image.fromarray(frame.astype(np.uint8)).save(
-        runtime["task_root"] / "overlays" / f"{stem}.jpg", quality=92
-    )
+    _write_composite_overlay(runtime, frame_index, effective_masks)
 
 
 def _runtime_report(runtime: dict[str, Any]) -> dict[str, Any]:
@@ -324,8 +370,21 @@ def _runtime_report(runtime: dict[str, Any]) -> dict[str, Any]:
     for object_id, item in sorted(runtime["objects"].items()):
         object_anomalies = detect_reactivation(item["model_mask_foreground_pixels"])
         object_anomalies.extend(detect_fragmentation(item["model_mask_component_counts"]))
-        rendered = [{"object_id": object_id, **asdict(anomaly)} for anomaly in object_anomalies]
-        anomalies.extend(rendered)
+        confirmed = set(item.get("confirmed_reactivation_frames", []))
+        rendered = []
+        for anomaly in object_anomalies:
+            resolved = (
+                anomaly.kind == "reactivation_after_disappearance"
+                and anomaly.frame_index in confirmed
+            )
+            entry = {
+                "object_id": object_id,
+                **asdict(anomaly),
+                "review_status": "confirmed" if resolved else "pending",
+            }
+            rendered.append(entry)
+            if not resolved:
+                anomalies.append(entry)
         guarded_frames.extend(item["guarded_frames"])
         objects.append(
             {
@@ -333,16 +392,19 @@ def _runtime_report(runtime: dict[str, Any]) -> dict[str, Any]:
                 "category": item["category"],
                 "color_rgb": list(OBJECT_COLORS[(object_id - 1) % len(OBJECT_COLORS)]),
                 "mask_directory": f"masks/object_{object_id:03d}",
-                "initial_points": item["points"],
-                "mask_foreground_pixels": item["mask_foreground_pixels"],
-                "model_mask_foreground_pixels": item["model_mask_foreground_pixels"],
-                "raw_mask_foreground_pixels": item["raw_mask_foreground_pixels"],
-                "mask_component_counts": item["mask_component_counts"],
-                "model_mask_component_counts": item["model_mask_component_counts"],
-                "guarded_frames": item["guarded_frames"],
+                "initial_points": [dict(point) for point in item["points"]],
+                "mask_foreground_pixels": dict(item["mask_foreground_pixels"]),
+                "model_mask_foreground_pixels": dict(item["model_mask_foreground_pixels"]),
+                "raw_mask_foreground_pixels": dict(item["raw_mask_foreground_pixels"]),
+                "mask_component_counts": dict(item["mask_component_counts"]),
+                "model_mask_component_counts": dict(item["model_mask_component_counts"]),
+                "guarded_frames": [dict(entry) for entry in item["guarded_frames"]],
+                "confirmed_reactivation_frames": sorted(confirmed),
                 "anomalies": rendered,
             }
         )
+    overlap_events = _detect_mask_overlaps(runtime)
+    anomalies.extend(overlap_events)
     first_id = min(runtime["objects"])
     first = runtime["objects"][first_id]
     return {
@@ -352,19 +414,25 @@ def _runtime_report(runtime: dict[str, Any]) -> dict[str, Any]:
         "objects": objects,
         "frame_count": len(runtime["frames"]),
         "postprocessing": "largest_connected_component" if runtime["keep_largest"] else "none",
-        "mask_foreground_pixels": first["mask_foreground_pixels"],
-        "model_mask_foreground_pixels": first["model_mask_foreground_pixels"],
-        "raw_mask_foreground_pixels": first["raw_mask_foreground_pixels"],
-        "mask_component_counts": first["mask_component_counts"],
-        "model_mask_component_counts": first["model_mask_component_counts"],
+        "mask_foreground_pixels": dict(first["mask_foreground_pixels"]),
+        "model_mask_foreground_pixels": dict(first["model_mask_foreground_pixels"]),
+        "raw_mask_foreground_pixels": dict(first["raw_mask_foreground_pixels"]),
+        "mask_component_counts": dict(first["mask_component_counts"]),
+        "model_mask_component_counts": dict(first["model_mask_component_counts"]),
         "reactivation_guard_enabled": runtime["guard_reactivation"],
         "reactivation_guard_minimum_empty_frames": 3,
-        "guarded_frames": guarded_frames,
+        "guarded_frames": [dict(entry) for entry in guarded_frames],
+        "confirmed_reactivations": [
+            {**entry, "restored_frames": list(entry["restored_frames"])}
+            for entry in runtime.get("confirmed_reactivations", [])
+        ],
+        "overlap_event_count": len(overlap_events),
+        "overlap_events": overlap_events,
         "model_load_seconds": runtime["model_load_seconds"],
         "initial_inference_seconds": runtime["initial_inference_seconds"],
         "peak_cuda_memory_bytes": runtime["peak_cuda_memory_bytes"],
-        "model": runtime["model"],
-        "corrections": runtime["corrections"],
+        "model": dict(runtime["model"]),
+        "corrections": [dict(entry) for entry in runtime["corrections"]],
         "anomaly_count": len(anomalies),
         "anomalies": anomalies,
     }
@@ -442,6 +510,7 @@ def _run_multi_segmentation(
                 "reactivation_guard": ReactivationGuard(3) if guard_reactivation else None,
                 "guarded_frames": [],
                 "guard_confirmed_frames": set(),
+                "confirmed_reactivation_frames": [],
             }
             for item in objects
         }
@@ -462,6 +531,7 @@ def _run_multi_segmentation(
             },
             "objects": object_runtimes,
             "corrections": [],
+            "confirmed_reactivations": [],
             "guard_reactivation": guard_reactivation,
         }
         started = time.perf_counter()
@@ -500,6 +570,126 @@ def _run_segmentation(
     return _run_multi_segmentation(
         task_state, objects, checkpoint_path, config_path, keep_largest, guard_reactivation
     )
+
+
+def _anomaly_selector_update(report: dict[str, Any]) -> dict[str, Any]:
+    labels = {
+        "reactivation_after_disappearance": "消失后重新激活",
+        "fragmented_mask": "多连通区域",
+        "instance_mask_overlap": "对象掩码重叠",
+    }
+    choices = []
+    for item in report.get("anomalies", []):
+        object_id = int(item["object_id"])
+        frame_index = int(item["frame_index"])
+        kind = str(item["kind"])
+        related = item.get("related_object_id")
+        object_label = f"目标 {object_id}"
+        if related is not None:
+            object_label += f" 与目标 {related}"
+        label = f"{object_label} · 第 {frame_index} 帧 · {labels.get(kind, kind)}"
+        choices.append((label, f"{object_id}:{frame_index}:{kind}"))
+    return gr.update(choices=choices, value=choices[0][1] if choices else None)
+
+
+def _run_multi_for_web(*args: Any) -> tuple[Any, ...]:
+    preview, report, status, session_key = _run_multi_segmentation(*args)
+    return preview, report, status, session_key, _anomaly_selector_update(report)
+
+
+def _load_selected_anomaly(
+    task_state: dict[str, Any] | None,
+    selection: str | None,
+) -> tuple[int, int, str, str, list[Any], list[Any], str]:
+    if not task_state or not selection:
+        raise gr.Error("当前没有可定位的异常。")
+    try:
+        object_text, frame_text, kind = selection.split(":", 2)
+        object_id, frame_index = int(object_text), int(frame_text)
+    except (TypeError, ValueError) as exc:
+        raise gr.Error("异常定位信息无效，请重新运行传播。") from exc
+    frames = task_state["frames"]
+    if not 0 <= frame_index < len(frames):
+        raise gr.Error("异常帧号超出视频范围。")
+    path = frames[frame_index]
+    return (
+        object_id,
+        frame_index,
+        path,
+        path,
+        [],
+        [],
+        f"已定位目标 {object_id} 的第 {frame_index} 帧异常：{kind}。",
+    )
+
+
+def _restore_guarded_candidate_masks(
+    runtime: dict[str, Any], object_id: int, start_frame: int
+) -> list[int]:
+    item = runtime["objects"][object_id]
+    restored = sorted(
+        {
+            int(entry["frame_index"])
+            for entry in item["guarded_frames"]
+            if int(entry["frame_index"]) >= start_frame
+        }
+    )
+    if not restored:
+        raise ValueError("该目标和帧没有等待确认的重新激活候选。")
+    candidate_dir = runtime["task_root"] / "review_candidates" / f"object_{object_id:03d}" / "masks"
+    object_dir = runtime["task_root"] / "masks" / f"object_{object_id:03d}"
+    for frame_index in restored:
+        name = f"{frame_index:05d}.png"
+        source = candidate_dir / name
+        if not source.is_file():
+            raise FileNotFoundError(f"missing review candidate: {source}")
+        shutil.copy2(source, object_dir / name)
+        if object_id == 1:
+            shutil.copy2(source, runtime["task_root"] / "masks" / name)
+        mask = np.asarray(Image.open(source).convert("L")) > 0
+        item["mask_foreground_pixels"][name] = int(mask.sum())
+        item["mask_component_counts"][name] = item["model_mask_component_counts"][name]
+        _write_composite_overlay(runtime, frame_index)
+    restored_set = set(restored)
+    item["guarded_frames"] = [
+        entry for entry in item["guarded_frames"]
+        if int(entry["frame_index"]) not in restored_set
+    ]
+    confirmations = item.setdefault("confirmed_reactivation_frames", [])
+    if start_frame not in confirmations:
+        confirmations.append(start_frame)
+    runtime.setdefault("confirmed_reactivations", []).append(
+        {"object_id": object_id, "frame_index": start_frame, "restored_frames": restored}
+    )
+    return restored
+
+
+def _confirm_guarded_candidate(
+    session_key: str | None,
+    object_id: int | float | None,
+    frame_index: int | float,
+) -> tuple[str, dict[str, Any], str, str, dict[str, Any]]:
+    if not session_key or object_id is None:
+        raise gr.Error("请先定位一个重新激活异常。")
+    with _SESSION_LOCK:
+        runtime = _ACTIVE_SESSIONS.get(session_key)
+    if runtime is None:
+        raise gr.Error("当前任务状态已释放，请重新运行传播。")
+    selected_object_id = int(object_id)
+    index = int(frame_index)
+    if selected_object_id not in runtime["objects"]:
+        raise gr.Error("目标不存在。")
+    try:
+        restored = _restore_guarded_candidate_masks(runtime, selected_object_id, index)
+        preview, report = _write_runtime_outputs(runtime)
+        overlay = str(runtime["task_root"] / "overlays" / f"{index:05d}.jpg")
+        status = (
+            f"已确认目标 {selected_object_id} 在第 {index} 帧重新出现，"
+            f"恢复 {len(restored)} 帧候选掩码。"
+        )
+        return preview, report, status, overlay, _anomaly_selector_update(report)
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
 
 
 def _export_active_task(session_key: str | None) -> tuple[str, str]:
@@ -553,6 +743,17 @@ def _apply_correction(
     try:
         if runtime["guard_reactivation"]:
             for current_object_id, item in runtime["objects"].items():
+                confirmed_history = set(item.get("confirmed_reactivation_frames", []))
+                was_guarded = any(
+                    int(entry["frame_index"]) == index for entry in item["guarded_frames"]
+                )
+                if (
+                    current_object_id == selected_object_id
+                    and was_guarded
+                    and any(point["positive"] for point in prompts)
+                ):
+                    confirmed_history.add(index)
+                    item["confirmed_reactivation_frames"] = sorted(confirmed_history)
                 item["reactivation_guard"] = ReactivationGuard(3)
                 item["guarded_frames"] = [
                     entry for entry in item["guarded_frames"] if entry["frame_index"] < index
@@ -560,7 +761,9 @@ def _apply_correction(
                 for prior_index in range(index):
                     name = f"{prior_index:05d}.png"
                     count = item["model_mask_foreground_pixels"].get(name, 0)
-                    item["reactivation_guard"].observe(prior_index, count)
+                    item["reactivation_guard"].observe(
+                        prior_index, count, confirmed=prior_index in confirmed_history
+                    )
                 item["guard_confirmed_frames"] = (
                     {index}
                     if current_object_id == selected_object_id
@@ -609,6 +812,11 @@ def _apply_correction(
         return preview, report, status, overlay, [], []
     except Exception as exc:
         raise _friendly_error(exc) from exc
+
+
+def _apply_correction_for_web(*args: Any) -> tuple[Any, ...]:
+    preview, report, status, overlay, prompts, table = _apply_correction(*args)
+    return preview, report, status, overlay, prompts, table, _anomaly_selector_update(report)
 
 
 def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
@@ -673,6 +881,11 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 "正点表示确认目标重新出现，负点则继续保持拦截。"
             )
             with gr.Row():
+                anomaly_selector = gr.Dropdown(
+                    choices=[], label="待复核异常帧", interactive=True
+                )
+                load_anomaly = gr.Button("定位所选异常")
+            with gr.Row():
                 correction_index = gr.Number(value=0, precision=0, minimum=0, label="修正帧号（从 0 开始）")
                 load_correction = gr.Button("载入修正帧")
             correction_frame_path = gr.State()
@@ -683,6 +896,7 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             with gr.Row():
                 clear_correction = gr.Button("清空修正点")
                 apply_correction = gr.Button("应用修正并重新传播", variant="primary")
+                confirm_candidate = gr.Button("确认候选目标重新出现")
 
         prepare.click(
             _prepare_multi_video,
@@ -702,7 +916,7 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             inputs=[first_frame_path, current_object, objects_state],
             outputs=[frame, objects_state, current_object, object_table, status],
         )
-        current_object.change(
+        current_object.input(
             _select_object,
             inputs=[first_frame_path, current_object, objects_state],
             outputs=[frame, status],
@@ -718,17 +932,26 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             outputs=[frame, objects_state, object_table],
         )
         run.click(
-            _run_multi_segmentation,
+            _run_multi_for_web,
             inputs=[
                 task_state, objects_state, checkpoint, config_value,
                 keep_largest, guard_reactivation,
             ],
-            outputs=[preview, report, status, session_key],
+            outputs=[preview, report, status, session_key, anomaly_selector],
         )
         export_bundle.click(
             _export_active_task,
             inputs=session_key,
             outputs=[download, status],
+        )
+        load_anomaly.click(
+            _load_selected_anomaly,
+            inputs=[task_state, anomaly_selector],
+            outputs=[
+                current_object, correction_index, correction_frame,
+                correction_frame_path, correction_prompt_state,
+                correction_table, status,
+            ],
         )
         load_correction.click(
             _load_correction_frame,
@@ -746,9 +969,17 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             outputs=[correction_frame, correction_prompt_state, correction_table],
         )
         apply_correction.click(
-            _apply_correction,
+            _apply_correction_for_web,
             inputs=[session_key, correction_index, correction_prompt_state, current_object],
-            outputs=[preview, report, status, correction_frame, correction_prompt_state, correction_table],
+            outputs=[
+                preview, report, status, correction_frame,
+                correction_prompt_state, correction_table, anomaly_selector,
+            ],
+        )
+        confirm_candidate.click(
+            _confirm_guarded_candidate,
+            inputs=[session_key, current_object, correction_index],
+            outputs=[preview, report, status, correction_frame, anomaly_selector],
         )
     return demo
 

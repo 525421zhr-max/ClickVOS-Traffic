@@ -212,6 +212,8 @@ def build_project_manifest(task_root: Path, result: dict[str, Any], output: Path
         "reactivation_guard_enabled": result.get("reactivation_guard_enabled"),
         "objects": objects,
         "corrections": result.get("corrections", []),
+        "confirmed_reactivations": result.get("confirmed_reactivations", []),
+        "overlap_events": result.get("overlap_events", []),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

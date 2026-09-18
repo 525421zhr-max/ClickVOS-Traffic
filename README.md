@@ -91,6 +91,8 @@ python -m clickvos.export outputs/tasks/demo/overlays \
 
 Web 默认启用“重新激活保护”：目标连续消失 3 帧后，后续突然出现的候选掩码不会直接进入最终结果，而是暂停并保存到任务目录的 `review_candidates/` 供用户核查。该规则已在 CP-02 第 46 帧错误重识别案例上完成真实 GPU 回归；它是保守的人工复核机制，不是身份识别模型。
 
+传播结束后，“待复核异常帧”会列出对象、帧号和异常类型，可直接定位到修正区域。对于被保护层暂停的重新激活候选，用户可以选择继续负点修正，也可以在确认确为同一目标后点击“确认候选目标重新出现”。多对象掩码重叠达到 10 像素时也会进入待复核列表。
+
 ## 本地 Web 界面
 
 ```bash
@@ -128,5 +130,6 @@ python -m clickvos.export bundle outputs/tasks/<task-id>
 - [W07 重新激活保护摘要](docs/research/results/w07-reactivation-guard.json)
 - [W08 Web 多目标分割摘要](docs/research/results/w08-web-multi-object.json)
 - [W09 标注导出摘要](docs/research/results/w09-annotation-export.json)
+- [W10 异常定位与候选确认摘要](docs/research/results/w10-anomaly-review.json)
 
 每次推送都会运行轻量仓库检查：解析配置与实验 JSON、检查必需文档、阻止视频或模型权重进入版本控制，并对 Python 源码执行语法编译。完整 GPU/SAM2 回归仍需在项目的 WSL 环境中运行。

@@ -39,4 +39,5 @@
 - [W07：目标重新激活保护](W07-reactivation-guard.md)（2026-09-17 完成）
 - [W08：Web 多目标交互式分割](W08-web-multi-object.md)（2026-09-17 完成）
 - [W09：多目标标注下载与 COCO RLE 导出](W09-annotation-export.md)（2026-09-17 完成）
+- [W10：异常帧定位、候选确认与重叠提示](W10-anomaly-review.md)（2026-09-18 完成）
 - 新一周从 [周记录模板](WEEKLY-TEMPLATE.md) 复制，实际结果必须来自命令输出或原始记录。
