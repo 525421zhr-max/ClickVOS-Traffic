@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/DEV-12-read-only-task-history.md",
+  "checkpoint": "DEV-12",
+  "date": "2026-09-18",
+  "status": "engineering_pass_local_task_history",
+  "input": {
+    "tasks_root": "outputs/tasks",
+    "mode": "read_only"
+  },
+  "measurements": {
+    "listed_task_count": 13,
+    "skipped_directory_count": 3,
+    "selected_task_id": "7e3d167b0b81",
+    "selected_frame_count": 50,
+    "selected_object_count": 1,
+    "selected_anomaly_count": 5,
+    "preview_exists": true,
+    "bundle_bytes": 486645,
+    "bundle_entry_count": 53,
+    "source_video_in_bundle": false,
+    "extracted_frames_in_bundle": false,
+    "automated_tests": "36 passed in 6.32s",
+    "web_http_status": 200
+  },
+  "conclusion": "Existing completed tasks can be listed, opened for read-only preview, and exported again without restoring a live SAM2 session or changing masks.",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "limitations": [
+    "Opening history does not restore an editable SAM2 session.",
+    "Invalid task directories are counted and skipped but are not yet inspectable from the UI.",
+    "No cleanup or deletion action is implemented in this checkpoint."
+  ]
+}

@@ -31,6 +31,7 @@ from clickvos.sam2_engine import (
     PromptPoint,
     Sam2Engine,
 )
+from clickvos.task_store import list_tasks, load_task
 from clickvos.video_io import prepare_task
 
 
@@ -910,6 +911,71 @@ def _export_active_task(session_key: str | None) -> tuple[str, str]:
         raise _friendly_error(exc) from exc
 
 
+def _refresh_task_history(config_path: str) -> tuple[dict[str, Any], str]:
+    try:
+        config = load_config(Path(config_path))
+        tasks, skipped = list_tasks(config.tasks_root)
+        choices = [(task.choice_label, task.task_id) for task in tasks]
+        if not choices:
+            message = "还没有可打开的历史任务。完成一次视频传播后，可在这里重新预览和导出。"
+        else:
+            message = f"找到 {len(choices)} 个历史任务，按最近更新时间排序。"
+        if skipped:
+            message += f" 另有 {skipped} 个不完整或损坏的目录已跳过。"
+        return gr.update(choices=choices, value=choices[0][1] if choices else None), message
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+
+
+def _open_history_task(
+    config_path: str, task_id: str | None
+) -> tuple[str | None, dict[str, Any], str]:
+    if not task_id:
+        raise gr.Error("请先选择一个历史任务。")
+    try:
+        config = load_config(Path(config_path))
+        task = load_task(config.tasks_root, task_id)
+        details = task.summary.as_dict()
+        details["read_only"] = True
+        if task.result is not None:
+            details["model"] = task.result.get("model")
+            details["initial_inference_seconds"] = task.result.get("initial_inference_seconds")
+            details["peak_cuda_memory_bytes"] = task.result.get("peak_cuda_memory_bytes")
+            details["objects"] = [
+                {
+                    "object_id": item.get("object_id"),
+                    "category": item.get("category"),
+                }
+                for item in task.result.get("objects", [])
+            ]
+        preview = str(task.preview) if task.preview is not None else None
+        if task.result is None:
+            message = f"任务 {task_id} 只有抽帧结果，尚未生成分割结果。"
+        elif task.preview is None:
+            message = f"已读取任务 {task_id}，但预览视频缺失；仍可重新生成标注包。"
+        else:
+            message = f"已只读打开任务 {task_id}。可查看预览或重新生成标注包。"
+        return preview, details, message
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+
+
+def _export_history_task(config_path: str, task_id: str | None) -> tuple[str, str]:
+    if not task_id:
+        raise gr.Error("请先选择一个历史任务。")
+    try:
+        config = load_config(Path(config_path))
+        task = load_task(config.tasks_root, task_id)
+        if task.result is None:
+            raise gr.Error("该任务尚无分割结果，不能生成标注包。")
+        bundle = build_annotation_bundle(task.root)
+        return str(bundle), f"历史任务 {task_id} 的标注包已生成。"
+    except gr.Error:
+        raise
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+
+
 def _load_correction_frame(
     task_state: dict[str, Any] | None,
     frame_index: float | int,
@@ -1056,6 +1122,30 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             interactive=False,
             elem_classes=["status-strip"],
         )
+        with gr.Accordion("历史任务（只读）", open=False, elem_classes=["step-panel"]):
+            gr.Markdown(
+                "这里读取本机 `outputs/tasks` 中已有的结果，不会重新加载模型或改写掩码。"
+                "历史任务可以预览和再次导出；如需继续补点，请用原视频重新运行传播。",
+                elem_classes=["section-note"],
+            )
+            with gr.Row():
+                history_selector = gr.Dropdown(
+                    choices=[], label="本地历史任务", interactive=True
+                )
+                refresh_history = gr.Button(
+                    "刷新列表", elem_classes=["secondary-action"]
+                )
+                open_history = gr.Button("打开所选任务", variant="primary")
+            history_status = gr.Markdown("正在读取本地任务列表。")
+            with gr.Row(equal_height=False):
+                history_preview = gr.Video(label="历史预览")
+                history_details = gr.JSON(label="任务摘要")
+            with gr.Row():
+                export_history = gr.Button("重新生成历史任务标注包")
+                history_download = gr.File(
+                    label="历史任务标注包（ZIP）", interactive=False
+                )
+
         with gr.Accordion("1. 准备交通视频", open=True, elem_classes=["step-panel"]):
             with gr.Row(equal_height=False):
                 video = gr.Video(label="交通视频", sources=["upload"])
@@ -1240,6 +1330,26 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             _undo_guarded_candidate_confirmation,
             inputs=[session_key, current_object, correction_index],
             outputs=[preview, report, status, correction_frame, anomaly_selector],
+        )
+        refresh_history.click(
+            _refresh_task_history,
+            inputs=config_value,
+            outputs=[history_selector, history_status],
+        )
+        open_history.click(
+            _open_history_task,
+            inputs=[config_value, history_selector],
+            outputs=[history_preview, history_details, history_status],
+        )
+        export_history.click(
+            _export_history_task,
+            inputs=[config_value, history_selector],
+            outputs=[history_download, history_status],
+        )
+        demo.load(
+            _refresh_task_history,
+            inputs=config_value,
+            outputs=[history_selector, history_status],
         )
     return demo
 

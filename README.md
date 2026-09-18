@@ -15,6 +15,7 @@
 - 目标消失后异常重现保护
 - 异常帧定位、候选确认及撤销
 - 多目标掩码重叠提示
+- 本地历史任务预览和再次导出
 - 逐对象 PNG 掩码、预览视频、项目 JSON 和 COCO RLE 导出
 
 目前主要在 WSL 24.04、Python 3.12、PyTorch 2.11.0+cu128 和 RTX 5060 Laptop GPU 上开发。模型使用 SAM2.1 Hiera Tiny，权重不会提交到仓库。
@@ -77,7 +78,7 @@ python -m clickvos.export bundle outputs/tasks/<task-id>
 - 单目标推理耗时 7.46 秒，有效速度约 6.70 FPS，峰值 CUDA 分配约 575 MiB。
 - 原目标离场后，SAM2 在第 46 帧错误激活到了另一辆车。这一案例现在用于回归测试异常保护和人工复核流程。
 - 双车辆任务已经验证独立掩码与合成预览；目前还没有行人和非机动车的真实回归结果。
-- 最近一次自动化测试结果为 `32 passed`。
+- 最近一次自动化测试结果为 `36 passed`。
 
 详细数据在 [`docs/research/results/`](docs/research/results/)，对应的命令、环境和问题记录在 [`docs/checkpoints/`](docs/checkpoints/)。
 
@@ -87,7 +88,8 @@ python -m clickvos.export bundle outputs/tasks/<task-id>
 - 最大连通区域过滤只能去掉不相连的小碎片，不能修复相连区域的边界错误。
 - 当前测试素材较少，异常规则的命中率和误报率还不能下结论。
 - 尚未在带逐帧真值的公开子集上计算 J&F。
-- 尚未完成任务历史恢复、自动清理、Docker 和云端部署。
+- 历史任务目前只能预览和再次导出，尚不能恢复成可继续补点的 SAM2 会话。
+- 尚未完成自动清理、Docker 和云端部署。
 
 ## 数据使用
 

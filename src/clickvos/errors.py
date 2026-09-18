@@ -14,6 +14,8 @@ class ErrorCode(StrEnum):
     VIDEO_INSPECTION_FAILED = "video_inspection_failed"
     FRAME_EXTRACTION_FAILED = "frame_extraction_failed"
     TASK_CONFLICT = "task_conflict"
+    TASK_NOT_FOUND = "task_not_found"
+    TASK_INVALID = "task_invalid"
     CONFIG_INVALID = "config_invalid"
     DEPENDENCY_MISSING = "dependency_missing"
 
@@ -32,4 +34,3 @@ class ClickVOSError(RuntimeError):
         if self.detail:
             result["detail"] = self.detail
         return result
-

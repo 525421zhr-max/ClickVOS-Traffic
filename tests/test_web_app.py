@@ -1,4 +1,6 @@
+import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -14,7 +16,10 @@ from clickvos.web_app import (
     _anomaly_selector_update,
     _detect_mask_overlaps,
     _export_active_task,
+    _export_history_task,
     _load_selected_anomaly,
+    _open_history_task,
+    _refresh_task_history,
     _restore_guarded_candidate_masks,
     _runtime_report,
     _save_runtime_prediction,
@@ -35,7 +40,8 @@ def test_gradio_demo_builds_with_expected_title() -> None:
         "修正帧号（从 0 开始）", "点击该帧添加修正提示",
         "重新激活保护（目标连续消失 3 帧后暂停可疑掩码）",
         "当前目标", "目标与提示点统计", "标注结果包（ZIP）",
-        "待复核异常帧",
+        "待复核异常帧", "本地历史任务", "历史预览", "任务摘要",
+        "历史任务标注包（ZIP）",
     } <= labels
     assert "撤销本次候选确认" in values
 
@@ -157,6 +163,57 @@ def test_web_export_callback_returns_downloadable_bundle(tmp_path: Path) -> None
         _ACTIVE_SESSIONS.pop("task", None)
     assert path == str(bundle)
     assert "标注包已生成" in status
+
+
+def test_history_callbacks_list_open_and_export_completed_task(tmp_path: Path) -> None:
+    task = tmp_path / "task-001"
+    (task / "exports").mkdir(parents=True)
+    (task / "task.json").write_text(
+        json.dumps(
+            {
+                "task_id": "task-001",
+                "status": "frames_extracted",
+                "video": {"path": "/data/traffic.mp4", "frame_count": 2},
+                "extracted_frame_count": 2,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (task / "result.json").write_text(
+        json.dumps(
+            {
+                "object_count": 1,
+                "anomaly_count": 0,
+                "objects": [{"object_id": 1, "category": "vehicle"}],
+                "model": {"name": "test-model"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    preview = task / "exports" / "preview.mp4"
+    preview.write_bytes(b"preview")
+    bundle = task / "exports" / "clickvos-task-001.zip"
+    bundle.write_bytes(b"zip")
+    config = SimpleNamespace(tasks_root=tmp_path)
+
+    with patch("clickvos.web_app.load_config", return_value=config):
+        update, refresh_status = _refresh_task_history("test-config.json")
+        opened_preview, details, open_status = _open_history_task(
+            "test-config.json", "task-001"
+        )
+        with patch("clickvos.web_app.build_annotation_bundle", return_value=bundle):
+            exported, export_status = _export_history_task(
+                "test-config.json", "task-001"
+            )
+
+    assert update["value"] == "task-001"
+    assert "找到 1 个历史任务" in refresh_status
+    assert opened_preview == str(preview)
+    assert details["read_only"] is True
+    assert details["objects"] == [{"object_id": 1, "category": "vehicle"}]
+    assert "只读打开" in open_status
+    assert exported == str(bundle)
+    assert "标注包已生成" in export_status
 
 
 def test_anomaly_selector_locates_object_and_frame() -> None:
