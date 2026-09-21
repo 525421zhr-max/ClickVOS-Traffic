@@ -104,6 +104,20 @@ APP_CSS = """
   border-color: var(--cv-border) !important;
 }
 .section-note { max-width: 75ch; color: var(--cv-muted); }
+.first-frame-review {
+  max-width: 75ch;
+  padding: 0.85rem 1rem;
+  border: 1px solid #b9d8d2;
+  border-radius: 0.65rem;
+  background: #f2faf8;
+  color: #23413c;
+}
+.first-frame-review h3 {
+  margin: 0 0 0.35rem !important;
+  color: var(--cv-accent-strong);
+  font-size: 1rem !important;
+}
+.first-frame-review p { margin: 0 !important; line-height: 1.6; }
 .danger-soft button {
   color: var(--cv-danger) !important;
   border-color: #efb0aa !important;
@@ -683,9 +697,45 @@ def _anomaly_selector_update(report: dict[str, Any]) -> dict[str, Any]:
     return gr.update(choices=choices, value=choices[0][1] if choices else None)
 
 
+def _first_frame_review(report: dict[str, Any], first_overlay: str) -> tuple[str, str]:
+    single_point_ids: list[int] = []
+    for item in report.get("objects", []):
+        positive_count = sum(
+            bool(point.get("positive")) for point in item.get("initial_points", [])
+        )
+        if positive_count == 1:
+            single_point_ids.append(int(item["object_id"]))
+
+    if single_point_ids:
+        ids = "、".join(str(object_id) for object_id in single_point_ids)
+        guidance = (
+            "### 先确认首帧对象完整\n"
+            f"目标 {ids} 目前只有一个正点。车辆或非机动车可能因此只分出车门、"
+            "车窗或车轮等局部。请检查左侧首帧掩码；如果没有覆盖完整目标，回到第 2 步，"
+            "在目标的不同部位补充正点后重新运行。负点应放在不需要的邻近物体上。"
+        )
+    else:
+        guidance = (
+            "### 先确认首帧对象完整\n"
+            "当前目标已有多个正点，但仍请检查左侧首帧掩码是否覆盖完整实例、"
+            "且没有包含邻近物体。首帧不完整时应先补点再传播，不要等到后续帧再修正。"
+        )
+    return first_overlay, guidance
+
+
 def _run_multi_for_web(*args: Any) -> tuple[Any, ...]:
     preview, report, status, session_key = _run_multi_segmentation(*args)
-    return preview, report, status, session_key, _anomaly_selector_update(report)
+    first_overlay = str(Path(args[0]["task_root"]) / "overlays" / "00000.jpg")
+    review_overlay, review_guidance = _first_frame_review(report, first_overlay)
+    return (
+        preview,
+        report,
+        status,
+        session_key,
+        _anomaly_selector_update(report),
+        review_overlay,
+        review_guidance,
+    )
 
 
 def _load_selected_anomaly(
@@ -1273,8 +1323,9 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 frame = gr.Image(label="首帧提示区域", interactive=False)
                 with gr.Column():
                     gr.Markdown(
-                        "为当前目标至少添加一个正点；如果掩码容易覆盖邻近物体，"
-                        "在邻近物体内部添加负点。切换目标后可继续标记。",
+                        "为当前目标至少添加一个正点。车辆和非机动车包含多个可分割部件时，"
+                        "建议在车头、车身和车尾等不同区域添加正点；负点放在不需要的邻近物体内部。"
+                        "切换目标后可继续标记。",
                         elem_classes=["section-note"],
                     )
                     category = gr.Dropdown(
@@ -1309,7 +1360,13 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
         run = gr.Button("3. 运行 SAM2 传播", variant="primary")
 
         with gr.Accordion("3. 传播结果", open=True, elem_classes=["step-panel"]):
-            preview = gr.Video(label="分割预览")
+            with gr.Row(equal_height=False):
+                first_result = gr.Image(label="首帧分割检查", interactive=False)
+                preview = gr.Video(label="完整传播预览")
+            first_frame_guidance = gr.Markdown(
+                "运行传播后，请先检查首帧是否覆盖完整目标，再查看后续帧。",
+                elem_classes=["first-frame-review"],
+            )
             with gr.Accordion("查看完整运行报告", open=False):
                 report = gr.JSON(label="运行结果与异常")
 
@@ -1391,7 +1448,10 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 task_state, objects_state, checkpoint, config_value,
                 keep_largest, guard_reactivation,
             ],
-            outputs=[preview, report, status, session_key, anomaly_selector],
+            outputs=[
+                preview, report, status, session_key, anomaly_selector,
+                first_result, first_frame_guidance,
+            ],
         )
         export_bundle.click(
             _export_active_task,

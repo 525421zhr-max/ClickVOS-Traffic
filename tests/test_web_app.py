@@ -19,12 +19,14 @@ from clickvos.web_app import (
     _detect_mask_overlaps,
     _export_active_task,
     _export_history_task,
+    _first_frame_review,
     _load_selected_anomaly,
     _launch_options,
     _open_history_task,
     _preview_history_cleanup,
     _refresh_task_history,
     _restore_guarded_candidate_masks,
+    _run_multi_for_web,
     _runtime_report,
     _save_runtime_prediction,
     _undo_guarded_candidate_masks,
@@ -62,7 +64,7 @@ def test_gradio_demo_builds_with_expected_title() -> None:
     labels = {component.get("props", {}).get("label") for component in config["components"]}
     values = {component.get("props", {}).get("value") for component in config["components"]}
     assert {
-        "交通视频", "目标类别", "分割预览", "运行结果与异常",
+        "交通视频", "目标类别", "首帧分割检查", "完整传播预览", "运行结果与异常",
         "修正帧号（从 0 开始）", "点击该帧添加修正提示",
         "重新激活保护（目标连续消失 3 帧后暂停可疑掩码）",
         "当前目标", "目标与提示点统计", "标注结果包（ZIP）",
@@ -71,6 +73,74 @@ def test_gradio_demo_builds_with_expected_title() -> None:
         "清理范围预览", "输入完整任务编号以确认",
     } <= labels
     assert "撤销本次候选确认" in values
+
+
+def test_first_frame_review_warns_when_an_object_has_only_one_positive_point() -> None:
+    report = {
+        "objects": [
+            {
+                "object_id": 1,
+                "initial_points": [
+                    {"x": 10, "y": 12, "positive": True},
+                    {"x": 2, "y": 3, "positive": False},
+                ],
+            },
+            {
+                "object_id": 2,
+                "initial_points": [
+                    {"x": 5, "y": 6, "positive": True},
+                    {"x": 9, "y": 8, "positive": True},
+                ],
+            },
+        ]
+    }
+
+    overlay, guidance = _first_frame_review(report, "/task/overlays/00000.jpg")
+
+    assert overlay == "/task/overlays/00000.jpg"
+    assert "目标 1 目前只有一个正点" in guidance
+    assert "车门" in guidance
+
+
+def test_first_frame_review_still_requires_visual_check_for_multiple_points() -> None:
+    report = {
+        "objects": [
+            {
+                "object_id": 1,
+                "initial_points": [
+                    {"x": 5, "y": 6, "positive": True},
+                    {"x": 9, "y": 8, "positive": True},
+                ],
+            }
+        ]
+    }
+
+    _, guidance = _first_frame_review(report, "/task/overlays/00000.jpg")
+
+    assert "已有多个正点" in guidance
+    assert "没有包含邻近物体" in guidance
+
+
+def test_web_run_returns_first_frame_overlay_and_guidance(tmp_path: Path) -> None:
+    task_state = {"task_root": str(tmp_path)}
+    report = {
+        "objects": [
+            {
+                "object_id": 1,
+                "initial_points": [{"x": 5, "y": 6, "positive": True}],
+            }
+        ],
+        "anomalies": [],
+    }
+    with patch(
+        "clickvos.web_app._run_multi_segmentation",
+        return_value=("preview.mp4", report, "完成", "task-001"),
+    ):
+        outputs = _run_multi_for_web(task_state)
+
+    assert len(outputs) == 7
+    assert outputs[5] == str(tmp_path / "overlays" / "00000.jpg")
+    assert "目标 1 目前只有一个正点" in outputs[6]
 
 
 def test_runtime_guard_preserves_candidate_and_writes_empty_final_mask(tmp_path: Path) -> None:
