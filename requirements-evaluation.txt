@@ -1,0 +1,6 @@
+# Isolated environment for official DAVIS J/F evaluation.
+davis2017 @ git+https://github.com/davisvideochallenge/davis2017-evaluation.git@ac7c43fca936f9722837b7fbd337d284ba37004b
+numpy==2.5.3
+pillow==12.3.0
+scikit-image==0.26.0
+scipy==1.18.1

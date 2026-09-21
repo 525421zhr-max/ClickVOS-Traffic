@@ -22,24 +22,65 @@
 
 署名说明：原视频 `Avtocesta` 由 Wikimedia Commons 用户 idioterna 发布，采用 CC BY 3.0。项目报告、演示或公开结果中使用该素材时必须保留作者、来源页面和许可证链接。
 
-## 候选素材（尚未下载或用于实验）
-
-以下条目只完成了来源页面与许可初筛。下载后必须补充原文件地址、SHA-256、实际内容检查和裁剪信息，才能转为正式实验输入。
-
-### traffic-candidate-pedestrian-001
+## traffic-002
 
 | 字段 | 记录 |
 | --- | --- |
 | 文件名 | `People waiting to cross the street.webm` |
 | 类别 | 行人 |
 | 来源页面 | `https://commons.wikimedia.org/wiki/File:People_waiting_to_cross_the_street.webm` |
+| 原文件地址 | `https://upload.wikimedia.org/wikipedia/commons/d/d2/People_waiting_to_cross_the_street.webm` |
 | 作者 | Amada44 |
 | 许可证 | CC BY-SA 3.0 |
-| 来源状态 | 上传者原创；当前仅完成页面核验 |
-| 页面规格 | 15.467 秒，1280×720，约 29.76 MB |
-| 使用状态 | 候选，未下载、未运行、未报告结果 |
+| 来源状态 | 上传者原创；2026-09-21 下载并核验页面信息 |
+| 原始规格 | 15.467 秒，1280×720，31,210,739 字节 |
+| 原文件 SHA-1 | `635373fdb0ccb21b9bd716666893faee18598669`（与 Commons 页面一致） |
+| 原文件 SHA-256 | `df6ef7dfbd4033f639d8cebd71cb5af50706b7cc8eb91bc3c836d0c15aeb21ad` |
+| 本地裁剪 | 起始 0 秒，时长 5 秒，960×540，10 FPS，H.264 MP4 |
+| 裁剪文件 SHA-256 | `461c2fed7d2913100c19d68fe2ec6a958c44498194ed863533eaeada12b7169f` |
+| 本项目用途 | 行人类别真实 GPU 回归；无逐帧真值，不计算 J、F 或 IoU |
 
-### traffic-candidate-nonmotor-001
+署名说明：原视频由 Wikimedia Commons 用户 Amada44 发布，采用 CC BY-SA 3.0。公开展示裁剪或叠加结果时保留作者、来源页面、许可证链接，并按相同许可要求处理派生媒体。
+
+## traffic-003
+
+| 字段 | 记录 |
+| --- | --- |
+| 文件名 | `Dostawca jedzenia i licznik rowerowy w działaniu w Katowicach na ulicy Korfantego.webm` |
+| 类别 | 非机动车（骑行者与自行车） |
+| 来源页面 | `https://commons.wikimedia.org/wiki/File:Dostawca_jedzenia_i_licznik_rowerowy_w_działaniu_w_Katowicach_na_ulicy_Korfantego.webm` |
+| 原文件地址 | `https://upload.wikimedia.org/wikipedia/commons/3/37/Dostawca_jedzenia_i_licznik_rowerowy_w_dzia%C5%82aniu_w_Katowicach_na_ulicy_Korfantego.webm` |
+| 作者 | Krzysztof Popławski |
+| 许可证 | CC BY-SA 4.0 |
+| 来源状态 | 上传者原创；2026-09-21 下载并核验页面信息 |
+| 原始规格 | 3.373 秒，720×1280，2,740,611 字节 |
+| 原文件 SHA-1 | `a311f8f3d1bf9321fed32747020bb42c1efc2c32`（与 Commons 页面一致） |
+| 原文件 SHA-256 | `da9a71b6cafdbb12180f8c913e45b86914c5f1ad60dd13b57b1d9466a33b1404` |
+| 本地裁剪 | 起始 0.5 秒，时长 2.8 秒，540×960，10 FPS，H.264 MP4 |
+| 裁剪文件 SHA-256 | `8cab22e1e0faad0ccefb2c9b7802517410fca18912c27a0fe3be9cb78441a969` |
+| 本项目用途 | 非机动车类别真实 GPU 回归；无逐帧真值，不计算 J、F 或 IoU |
+
+署名说明：原视频由 Wikimedia Commons 用户 Krzysztof Popławski 发布，采用 CC BY-SA 4.0。公开展示裁剪或叠加结果时保留作者、来源页面、许可证链接，并按相同许可要求处理派生媒体。
+
+## davis-001-bike-packing
+
+| 字段 | 记录 |
+| --- | --- |
+| 数据集 | DAVIS 2017 train/val 480p，`bike-packing` 序列 |
+| 官方下载页 | `https://davischallenge.org/davis2017/code.html` |
+| 官方压缩包 | `https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-trainval-480p.zip` |
+| 获取方式 | 2026-09-21 使用 HTTP Range 只提取本序列的 69 张图像和 69 张真值掩码，共 12,937,993 字节 |
+| 标注对象 | 对象 1：bicycle；对象 2：person |
+| 数据许可 | 压缩包 `DAVIS/README.md` 的 Terms of Use 为 CC BY-NC 4.0；`SOURCES.md` 另列原视频来源，仍需遵守来源条款 |
+| 原视频来源 | `https://www.youtube.com/watch?v=2JMcuDkvX8I`（由压缩包 `SOURCES.md` 给出） |
+| 评估实现 | 官方 `davis2017-evaluation`，提交 `ac7c43fca936f9722837b7fbd337d284ba37004b` |
+| 本项目用途 | 仅用于非商业研究的指标流水线验证，不作为交通场景证据，不随软件或 Git 仓库分发 |
+
+该序列包含自行车，但首段是室内维护场景。因此它可以验证 SAM2 输出与 DAVIS J/F 指标链路，不能据此宣称已经完成“公开交通数据子集”的完整定量评估。
+
+## 已拒绝候选
+
+### traffic-candidate-rejected-firstperson-bike
 
 | 字段 | 记录 |
 | --- | --- |
@@ -50,6 +91,8 @@
 | 许可证 | CC BY 3.0 |
 | 来源状态 | 外部来源许可于 2016-02-23 经 Wikimedia 审核 |
 | 页面规格 | 25 秒，1920×1080，约 14.67 MB |
-| 使用状态 | 候选，未下载、未运行、未报告结果 |
+| 原文件 SHA-1 | `233669a4058e1808803893596fbd920807959642`（与 Commons 页面一致） |
+| 原文件 SHA-256 | `3afbbfbd0ad124d776839b3f439e1876718fa4d53c17cabbeb7bef0bf486cef3` |
+| 使用状态 | 2026-09-21 下载并人工检查后拒绝；第一视角骑行，缺少稳定、完整的外部自行车目标，不进入实验结果 |
 
 候选筛选规则：许可必须允许项目使用和必要裁剪；来源页面必须能核验作者与许可；排除暴力事故、隐私导向内容和许可待复核素材。视频中即使包含公共场景人物，也只用于交通目标分割，不做人脸识别、身份推断或个人信息处理。

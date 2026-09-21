@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/DEV-15-multiclass-data-and-davis-evaluation.md",
+  "checkpoint": "DEV-15",
+  "date": "2026-09-21",
+  "status": "multiclass_regression_and_metric_pipeline_passed",
+  "inputs": [
+    {"source_id": "traffic-002", "category": "pedestrian", "frame_count": 50},
+    {"source_id": "traffic-003", "category": "non_motorized", "frame_count": 28},
+    {"source_id": "davis-001-bike-packing", "object_id": 1, "category": "bicycle", "frame_count": 69}
+  ],
+  "measurements": {
+    "pedestrian": {"inference_seconds": 9.431626705, "fps": 5.301312442, "peak_cuda_memory_bytes": 602537472},
+    "non_motorized": {"inference_seconds": 6.528735562, "fps": 4.288732440, "peak_cuda_memory_bytes": 601987072},
+    "davis_bicycle": {
+      "inference_seconds": 18.33892663,
+      "fps": 3.76248847,
+      "peak_cuda_memory_bytes": 603464704,
+      "evaluated_frame_count": 67,
+      "mean_j": 0.7444657341,
+      "mean_f": 0.7796016216,
+      "mean_j_and_f": 0.7620336778
+    }
+  },
+  "ground_truth_available": true,
+  "ground_truth_scope": "Only davis-001-bike-packing object 1 has per-frame ground truth; traffic-002 and traffic-003 do not.",
+  "quality_metrics_reported": ["DAVIS J", "DAVIS F", "DAVIS J&F"],
+  "conclusion": "All three product categories now have real licensed-video regression evidence, and the official DAVIS J/F pipeline is reproducible. The quantified DAVIS sequence is not a road-traffic scene and does not complete CP-07.",
+  "limitations": [
+    "Pedestrian and road non-motorized clips have no per-frame ground truth.",
+    "The quantified DAVIS bike-packing sequence begins indoors and is metric-pipeline evidence rather than traffic-scene evidence.",
+    "The DAVIS data is used locally for non-commercial research and is not redistributed."
+  ]
+}

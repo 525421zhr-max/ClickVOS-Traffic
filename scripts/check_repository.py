@@ -55,8 +55,16 @@ def main() -> int:
             fail(f"实验摘要 schema_version 错误：{path.relative_to(ROOT)}")
         if not record.get("source_checkpoint"):
             fail(f"实验摘要缺少 source_checkpoint：{path.relative_to(ROOT)}")
-        if record.get("ground_truth_available") is not False:
-            fail(f"当前摘要必须明确 ground_truth_available=false：{path.relative_to(ROOT)}")
+        ground_truth = record.get("ground_truth_available")
+        metrics = record.get("quality_metrics_reported")
+        if not isinstance(ground_truth, bool):
+            fail(f"实验摘要必须明确 ground_truth_available：{path.relative_to(ROOT)}")
+        if not isinstance(metrics, list):
+            fail(f"实验摘要缺少 quality_metrics_reported 数组：{path.relative_to(ROOT)}")
+        if ground_truth and not metrics:
+            fail(f"有真值的实验摘要必须列出质量指标：{path.relative_to(ROOT)}")
+        if not ground_truth and metrics:
+            fail(f"无真值的实验摘要不得报告质量指标：{path.relative_to(ROOT)}")
 
     required_docs = [
         ROOT / "README.md",

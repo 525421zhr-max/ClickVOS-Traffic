@@ -44,5 +44,6 @@
 - [W10：异常帧定位、候选确认与重叠提示](W10-anomaly-review.md)（2026-09-18）
 - [DEV-11：操作流程界面与候选确认撤销](DEV-11-interface-and-review-undo.md)（2026-09-18）
 - [DEV-12：只读历史任务](DEV-12-read-only-task-history.md)（2026-09-18）
+- [DEV-15：多类别素材回归与 DAVIS 指标链路](DEV-15-multiclass-data-and-davis-evaluation.md)（2026-09-21）
 
 新记录从 [模板](WEEKLY-TEMPLATE.md) 复制。实验数字必须能回到命令输出或原始文件。
