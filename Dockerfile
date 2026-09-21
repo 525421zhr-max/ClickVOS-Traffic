@@ -35,10 +35,10 @@ RUN python -m pip install --no-cache-dir -r requirements-app.txt \
 
 COPY configs ./configs
 COPY scripts ./scripts
-RUN mkdir -p /app/outputs/tasks /models
+RUN mkdir -p /app/outputs/tasks /app/outputs/task_trash /models
 
 EXPOSE 7860
-VOLUME ["/app/outputs/tasks", "/models"]
+VOLUME ["/app/outputs", "/models"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
   CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('CLICKVOS_PORT', '7860') + '/', timeout=3)" || exit 1

@@ -16,5 +16,5 @@ services:
       CLICKVOS_CHECKPOINT: /models/sam2.1_hiera_tiny.pt
     volumes:
       - ${CLICKVOS_MODEL_DIR:-./models}:/models:ro
-      - ./outputs/tasks:/app/outputs/tasks
+      - ./outputs:/app/outputs
     shm_size: 2gb

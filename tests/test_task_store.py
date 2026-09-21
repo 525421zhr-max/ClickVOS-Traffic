@@ -7,7 +7,14 @@ from pathlib import Path
 import pytest
 
 from clickvos.errors import ErrorCode
-from clickvos.task_store import TaskStoreError, list_tasks, load_task, resolve_task_root
+from clickvos.task_store import (
+    TaskStoreError,
+    archive_task,
+    list_tasks,
+    load_task,
+    preview_task_cleanup,
+    resolve_task_root,
+)
 
 
 def _write_task(
@@ -88,3 +95,45 @@ def test_resolve_task_root_rejects_traversal_and_missing_task(tmp_path: Path) ->
     with pytest.raises(TaskStoreError) as missing:
         resolve_task_root(tmp_path, "missing")
     assert missing.value.code == ErrorCode.TASK_NOT_FOUND
+
+
+def test_archive_task_requires_preview_and_moves_task_to_recoverable_trash(
+    tmp_path: Path,
+) -> None:
+    tasks_root = tmp_path / "tasks"
+    root = _write_task(tasks_root, "task-001")
+    preview = preview_task_cleanup(tasks_root, "task-001")
+
+    archived = archive_task(
+        tasks_root, "task-001", "task-001", preview, active_task_ids=set()
+    )
+
+    assert not root.exists()
+    assert archived.archived_root.parent == tmp_path / "task_trash"
+    assert (archived.archived_root / "task.json").is_file()
+    assert (archived.archived_root / ".archive.json").is_file()
+    assert archived.file_count == preview.file_count
+    assert archived.size_bytes == preview.size_bytes
+
+
+def test_archive_task_rejects_wrong_confirmation_active_or_changed_task(
+    tmp_path: Path,
+) -> None:
+    tasks_root = tmp_path / "tasks"
+    root = _write_task(tasks_root, "task-001")
+    preview = preview_task_cleanup(tasks_root, "task-001")
+
+    with pytest.raises(TaskStoreError, match="确认文字不匹配"):
+        archive_task(tasks_root, "task-001", "wrong", preview)
+    with pytest.raises(TaskStoreError, match="活动推理会话"):
+        archive_task(
+            tasks_root,
+            "task-001",
+            "task-001",
+            preview,
+            active_task_ids={"task-001"},
+        )
+
+    (root / "new-output.txt").write_text("changed", encoding="utf-8")
+    with pytest.raises(TaskStoreError, match="预览后发生变化"):
+        archive_task(tasks_root, "task-001", "task-001", preview)

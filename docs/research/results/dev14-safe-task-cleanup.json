@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_engineering_summary",
+  "source_checkpoint": "docs/checkpoints/DEV-14-safe-task-cleanup.md",
+  "checkpoint": "DEV-14",
+  "date": "2026-09-21",
+  "status": "safe_task_archive_verified_in_temporary_directory",
+  "measurements": {
+    "automated_tests": "42 passed in 5.90s",
+    "web_http_status": 200,
+    "cleanup_preview_component_present": true,
+    "cleanup_confirmation_component_present": true,
+    "real_user_task_archived": false
+  },
+  "conclusion": "Historical tasks can be measured and moved to a recoverable project trash area only after exact-ID confirmation; active or changed tasks are rejected.",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "limitations": [
+    "Moving a task to project trash does not free disk space.",
+    "Restore is documented but not yet available in the web interface.",
+    "Permanent expiration and deletion are not implemented."
+  ]
+}

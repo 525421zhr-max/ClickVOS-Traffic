@@ -15,12 +15,14 @@ from clickvos.web_app import (
     _add_object,
     _add_object_click,
     _anomaly_selector_update,
+    _archive_history_task,
     _detect_mask_overlaps,
     _export_active_task,
     _export_history_task,
     _load_selected_anomaly,
     _launch_options,
     _open_history_task,
+    _preview_history_cleanup,
     _refresh_task_history,
     _restore_guarded_candidate_masks,
     _runtime_report,
@@ -66,6 +68,7 @@ def test_gradio_demo_builds_with_expected_title() -> None:
         "当前目标", "目标与提示点统计", "标注结果包（ZIP）",
         "待复核异常帧", "本地历史任务", "历史预览", "任务摘要",
         "历史任务标注包（ZIP）",
+        "清理范围预览", "输入完整任务编号以确认",
     } <= labels
     assert "撤销本次候选确认" in values
 
@@ -238,6 +241,48 @@ def test_history_callbacks_list_open_and_export_completed_task(tmp_path: Path) -
     assert "只读打开" in open_status
     assert exported == str(bundle)
     assert "标注包已生成" in export_status
+
+
+def test_history_cleanup_callbacks_preview_and_archive_task(tmp_path: Path) -> None:
+    task = tmp_path / "task-001"
+    task.mkdir()
+    (task / "task.json").write_text(
+        json.dumps(
+            {
+                "task_id": "task-001",
+                "status": "frames_extracted",
+                "video": {"path": "/data/traffic.mp4", "frame_count": 2},
+                "extracted_frame_count": 2,
+            }
+        ),
+        encoding="utf-8",
+    )
+    config = SimpleNamespace(tasks_root=tmp_path)
+
+    with patch("clickvos.web_app.load_config", return_value=config):
+        details, state, confirmation, preview_status = _preview_history_cleanup(
+            "test-config.json", "task-001"
+        )
+        with pytest.raises(gr.Error, match="活动推理会话"):
+            _archive_history_task(
+                "test-config.json",
+                "task-001",
+                "task-001",
+                state,
+                {"task_root": str(task)},
+            )
+        outputs = _archive_history_task(
+            "test-config.json", "task-001", "task-001", state, None
+        )
+
+    assert details["file_count"] == 1
+    assert details["action"] == "move_to_recoverable_trash"
+    assert confirmation == ""
+    assert "输入任务编号" in preview_status
+    assert not task.exists()
+    assert outputs[0]["value"] is None
+    assert outputs[2] == {}
+    assert "尚未永久删除" in outputs[-1]
 
 
 def test_anomaly_selector_locates_object_and_frame() -> None:

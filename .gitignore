@@ -26,6 +26,7 @@ outputs/masks/*
 outputs/cp01/
 outputs/cp02/
 outputs/tasks/
+outputs/task_trash/
 logs/*
 *.pt
 *.pth

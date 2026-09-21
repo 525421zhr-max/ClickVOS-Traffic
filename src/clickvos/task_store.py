@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,26 @@ class StoredTask:
     result: dict[str, Any] | None
     preview: Path | None
     summary: TaskSummary
+
+
+@dataclass(frozen=True)
+class CleanupPreview:
+    task_id: str
+    file_count: int
+    size_bytes: int
+    latest_mtime_ns: int
+    trash_root: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class ArchivedTask:
+    task_id: str
+    archived_root: Path
+    file_count: int
+    size_bytes: int
 
 
 def resolve_task_root(tasks_root: Path, task_id: str) -> Path:
@@ -166,3 +187,105 @@ def list_tasks(tasks_root: Path, maximum: int = 200) -> tuple[list[TaskSummary],
         except (TaskStoreError, OSError, TypeError, ValueError):
             skipped += 1
     return summaries, skipped
+
+
+def _task_usage(root: Path) -> tuple[int, int, int]:
+    file_count = 0
+    size_bytes = 0
+    latest_mtime_ns = root.stat().st_mtime_ns
+    for current_root, directories, files in os.walk(root, followlinks=False):
+        current = Path(current_root)
+        directories[:] = [name for name in directories if not (current / name).is_symlink()]
+        for name in files:
+            path = current / name
+            try:
+                stat = path.lstat()
+            except OSError as exc:
+                raise TaskStoreError(
+                    ErrorCode.TASK_INVALID,
+                    "无法完整读取任务占用空间，请稍后重试。",
+                    str(path),
+                ) from exc
+            file_count += 1
+            size_bytes += stat.st_size
+            latest_mtime_ns = max(latest_mtime_ns, stat.st_mtime_ns)
+    return file_count, size_bytes, latest_mtime_ns
+
+
+def preview_task_cleanup(tasks_root: Path, task_id: str) -> CleanupPreview:
+    root = resolve_task_root(tasks_root, task_id)
+    file_count, size_bytes, latest_mtime_ns = _task_usage(root)
+    trash_root = tasks_root.expanduser().resolve().parent / "task_trash"
+    return CleanupPreview(
+        task_id=task_id,
+        file_count=file_count,
+        size_bytes=size_bytes,
+        latest_mtime_ns=latest_mtime_ns,
+        trash_root=str(trash_root),
+    )
+
+
+def archive_task(
+    tasks_root: Path,
+    task_id: str,
+    confirmation: str,
+    expected: CleanupPreview,
+    *,
+    active_task_ids: set[str] | None = None,
+) -> ArchivedTask:
+    if confirmation != task_id:
+        raise TaskStoreError(
+            ErrorCode.TASK_INVALID,
+            "确认文字不匹配，请完整输入任务编号。",
+            task_id,
+        )
+    if expected.task_id != task_id:
+        raise TaskStoreError(
+            ErrorCode.TASK_INVALID,
+            "当前选择与清理预览不一致，请重新预览。",
+            task_id,
+        )
+    if task_id in (active_task_ids or set()):
+        raise TaskStoreError(
+            ErrorCode.TASK_CONFLICT,
+            "当前任务仍在活动推理会话中，不能清理。",
+            task_id,
+        )
+
+    root = resolve_task_root(tasks_root, task_id)
+    actual = preview_task_cleanup(tasks_root, task_id)
+    if (
+        actual.file_count != expected.file_count
+        or actual.size_bytes != expected.size_bytes
+        or actual.latest_mtime_ns != expected.latest_mtime_ns
+    ):
+        raise TaskStoreError(
+            ErrorCode.TASK_CONFLICT,
+            "任务内容在预览后发生变化，请重新预览再确认。",
+            task_id,
+        )
+
+    trash_root = Path(expected.trash_root).resolve()
+    expected_trash = tasks_root.expanduser().resolve().parent / "task_trash"
+    if trash_root != expected_trash:
+        raise TaskStoreError(
+            ErrorCode.TASK_INVALID,
+            "任务回收区路径无效，请重新预览。",
+            str(trash_root),
+        )
+    trash_root.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    destination = trash_root / f"{task_id}-{timestamp}"
+    root.replace(destination)
+    archive_record = {
+        "schema_version": 1,
+        "task_id": task_id,
+        "archived_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "original_tasks_root": str(tasks_root.expanduser().resolve()),
+        "file_count_before_archive": actual.file_count,
+        "size_bytes_before_archive": actual.size_bytes,
+    }
+    (destination / ".archive.json").write_text(
+        json.dumps(archive_record, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return ArchivedTask(task_id, destination, actual.file_count, actual.size_bytes)

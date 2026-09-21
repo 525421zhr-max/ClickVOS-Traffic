@@ -31,7 +31,13 @@ from clickvos.sam2_engine import (
     PromptPoint,
     Sam2Engine,
 )
-from clickvos.task_store import list_tasks, load_task
+from clickvos.task_store import (
+    CleanupPreview,
+    archive_task,
+    list_tasks,
+    load_task,
+    preview_task_cleanup,
+)
 from clickvos.video_io import prepare_task
 
 
@@ -981,6 +987,85 @@ def _export_history_task(config_path: str, task_id: str | None) -> tuple[str, st
         raise _friendly_error(exc) from exc
 
 
+def _format_bytes(size_bytes: int) -> str:
+    value = float(size_bytes)
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if value < 1024 or unit == "GiB":
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} GiB"
+
+
+def _preview_history_cleanup(
+    config_path: str, task_id: str | None
+) -> tuple[dict[str, Any], dict[str, Any], str, str]:
+    if not task_id:
+        raise gr.Error("请先选择一个历史任务。")
+    try:
+        config = load_config(Path(config_path))
+        task = load_task(config.tasks_root, task_id)
+        preview = preview_task_cleanup(config.tasks_root, task_id)
+        details = {
+            "task_id": task_id,
+            "video_name": task.summary.video_name,
+            "frame_count": task.summary.frame_count,
+            "object_count": task.summary.object_count,
+            "file_count": preview.file_count,
+            "size_bytes": preview.size_bytes,
+            "size_human": _format_bytes(preview.size_bytes),
+            "action": "move_to_recoverable_trash",
+            "trash_root": preview.trash_root,
+        }
+        message = (
+            f"已预览任务 {task_id}：{preview.file_count} 个文件，"
+            f"约 {_format_bytes(preview.size_bytes)}。"
+            "如需移入回收区，请在确认框完整输入任务编号。"
+        )
+        return details, preview.as_dict(), "", message
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+
+
+def _archive_history_task(
+    config_path: str,
+    task_id: str | None,
+    confirmation: str,
+    cleanup_state: dict[str, Any] | None,
+    current_task_state: dict[str, Any] | None,
+) -> tuple[dict[str, Any], None, dict[str, Any], dict[str, Any], str, None, str]:
+    if not task_id:
+        raise gr.Error("请先选择一个历史任务。")
+    if not cleanup_state:
+        raise gr.Error("请先预览清理范围。")
+    try:
+        config = load_config(Path(config_path))
+        expected = CleanupPreview(**cleanup_state)
+        with _SESSION_LOCK:
+            active_ids = set(_ACTIVE_SESSIONS)
+            if current_task_state and current_task_state.get("task_root"):
+                active_ids.add(Path(current_task_state["task_root"]).name)
+            archived = archive_task(
+                config.tasks_root,
+                task_id,
+                confirmation,
+                expected,
+                active_task_ids=active_ids,
+            )
+        tasks, skipped = list_tasks(config.tasks_root)
+        choices = [(task.choice_label, task.task_id) for task in tasks]
+        message = (
+            f"任务 {archived.task_id} 已移入可恢复回收区："
+            f"{archived.archived_root}。本次移动 {archived.file_count} 个文件，"
+            f"约 {_format_bytes(archived.size_bytes)}；尚未永久删除。"
+        )
+        if skipped:
+            message += f" 另有 {skipped} 个不完整或损坏目录已跳过。"
+        selector = gr.update(choices=choices, value=choices[0][1] if choices else None)
+        return selector, None, {}, {}, "", None, message
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+
+
 def _load_correction_frame(
     task_state: dict[str, Any] | None,
     frame_index: float | int,
@@ -1119,6 +1204,7 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
         objects_state = gr.State([])
         first_frame_path = gr.State()
         session_key = gr.State()
+        cleanup_state = gr.State({})
         config_value = gr.State(str(config_path))
 
         status = gr.Textbox(
@@ -1150,6 +1236,24 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 history_download = gr.File(
                     label="历史任务标注包（ZIP）", interactive=False
                 )
+            with gr.Accordion("清理所选任务", open=False):
+                gr.Markdown(
+                    "先预览文件数和占用空间，再输入完整任务编号确认。"
+                    "任务只会移入项目回收区，不会立即永久删除；当前活动任务不能清理。",
+                    elem_classes=["section-note"],
+                )
+                cleanup_preview = gr.JSON(label="清理范围预览")
+                cleanup_confirmation = gr.Textbox(
+                    label="输入完整任务编号以确认",
+                    placeholder="例如：7e3d167b0b81",
+                )
+                with gr.Row():
+                    preview_cleanup = gr.Button(
+                        "预览清理范围", elem_classes=["secondary-action"]
+                    )
+                    archive_history = gr.Button(
+                        "移入可恢复回收区", elem_classes=["danger-soft"]
+                    )
 
         with gr.Accordion("1. 准备交通视频", open=True, elem_classes=["step-panel"]):
             with gr.Row(equal_height=False):
@@ -1350,6 +1454,26 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             _export_history_task,
             inputs=[config_value, history_selector],
             outputs=[history_download, history_status],
+        )
+        preview_cleanup.click(
+            _preview_history_cleanup,
+            inputs=[config_value, history_selector],
+            outputs=[
+                cleanup_preview, cleanup_state,
+                cleanup_confirmation, history_status,
+            ],
+        )
+        archive_history.click(
+            _archive_history_task,
+            inputs=[
+                config_value, history_selector,
+                cleanup_confirmation, cleanup_state, task_state,
+            ],
+            outputs=[
+                history_selector, history_preview, history_details,
+                cleanup_preview, cleanup_confirmation,
+                history_download, history_status,
+            ],
         )
         demo.load(
             _refresh_task_history,
