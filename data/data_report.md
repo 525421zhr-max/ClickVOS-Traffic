@@ -10,6 +10,7 @@
 | `traffic-002` | 行人交通回归 | Wikimedia Commons，CC BY-SA 3.0 | 50 帧真实 GPU 传播；无真值，不报告精度 |
 | `traffic-003` | 非机动车交通回归 | Wikimedia Commons，CC BY-SA 4.0 | 28 帧真实 GPU 传播；无真值，不报告精度 |
 | `davis-001-bike-packing` | 官方 J/F 流水线 | DAVIS 包 README：CC BY-NC 4.0，另需遵守原视频条款 | 69 帧自行车对象传播，评估中间 67 帧；非交通场景，仅作指标验证 |
+| `davis-002-car-roundabout` | 道路交通定量基线 | DAVIS 2017 验证集，包 README：CC BY-NC 4.0 | 75 帧车辆真值；完成单点局部选择与多点整车选择对照 |
 | `traffic-candidate-rejected-firstperson-bike` | 候选筛选 | Wikimedia Commons，CC BY 3.0 | 第一视角且没有稳定完整目标，拒绝进入实验 |
 
 详细 URL、作者、哈希、裁剪参数和署名要求见 `docs/research/data-sources.md`。本轮素材均为公开授权内容，没有使用私人照片，也不进行人脸识别、身份推断或与分割任务无关的个人信息处理。
@@ -18,5 +19,5 @@
 
 - 三个产品目标类别均已有至少一个真实公开视频回归样本。
 - 行人和非机动车样本缺少逐帧人工真值，只能报告运行性能和人工视觉检查，不能报告 IoU、J 或 F。
-- DAVIS 已验证官方 J/F 链路，但 `bike-packing` 不是合格的交通场景评估样本。
-- 下一轮应寻找许可证清晰、带逐帧实例掩码的道路交通视频子集，并优先覆盖遮挡、离场与重现。
+- DAVIS `car-roundabout` 已提供第一条带逐帧真值的道路交通车辆基线。
+- 仍需补充带真值的道路行人和非机动车，以及遮挡、离场与重现案例，不能由单个车辆序列外推整体性能。

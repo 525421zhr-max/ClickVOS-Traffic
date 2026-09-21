@@ -78,6 +78,23 @@
 
 该序列包含自行车，但首段是室内维护场景。因此它可以验证 SAM2 输出与 DAVIS J/F 指标链路，不能据此宣称已经完成“公开交通数据子集”的完整定量评估。
 
+## davis-002-car-roundabout
+
+| 字段 | 记录 |
+| --- | --- |
+| 数据集 | DAVIS 2017 train/val 480p，验证集 `car-roundabout` 序列 |
+| 官方下载页 | `https://davischallenge.org/davis2017/code.html` |
+| 官方压缩包 | `https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-trainval-480p.zip` |
+| 获取方式 | 2026-09-21 使用 HTTP Range 只提取本序列的 75 张图像和 75 张真值掩码，共 9,722,493 字节 |
+| 文件集合清单 SHA-256 | `4236e1c7bdad7c99087adb8e97c4d45feca391264ddae35ff691749ecb77ff6d` |
+| 标注对象 | 对象 1：car |
+| 场景 | 白天城市环岛，目标车辆由侧面驶向远处，背景包含多辆相似车辆 |
+| 数据许可 | 压缩包 `DAVIS/README.md` 的 Terms of Use 为 CC BY-NC 4.0；`SOURCES.md` 未为该序列另列外部来源 |
+| 评估实现 | 官方 `davis2017-evaluation`，提交 `ac7c43fca936f9722837b7fbd337d284ba37004b` |
+| 本项目用途 | 非商业研究的道路交通首帧提示对照实验；不随软件或 Git 仓库分发 |
+
+该序列满足“道路交通画面、逐帧实例真值、目标身份连续”的小样本评估条件。它只包含单个车辆对象，尚不能覆盖行人、非机动车、严重遮挡或多目标交互。
+
 ## 已拒绝候选
 
 ### traffic-candidate-rejected-firstperson-bike

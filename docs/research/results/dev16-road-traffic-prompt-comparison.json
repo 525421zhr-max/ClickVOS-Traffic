@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/DEV-16-road-traffic-prompt-comparison.md",
+  "checkpoint": "DEV-16",
+  "date": "2026-09-21",
+  "status": "single_sequence_road_traffic_prompt_comparison_complete",
+  "input": {
+    "source_id": "davis-002-car-roundabout",
+    "split": "DAVIS 2017 validation",
+    "category": "vehicle",
+    "object_id": 1,
+    "frame_count": 75,
+    "evaluated_frame_count": 73,
+    "postprocessing": "none"
+  },
+  "measurements": {
+    "single_positive_and_negative": {
+      "positive_points_xy": [[430, 270]],
+      "negative_points_xy": [[155, 235]],
+      "mean_j": 0.1423986288,
+      "mean_f": 0.0459340261,
+      "mean_j_and_f": 0.0941663275,
+      "inference_seconds": 10.672203342,
+      "fps": 7.02760223,
+      "peak_cuda_memory_bytes": 602774016
+    },
+    "four_positive_and_negative": {
+      "positive_points_xy": [[305, 270], [430, 270], [560, 285], [320, 320]],
+      "negative_points_xy": [[155, 235]],
+      "mean_j": 0.9807076276,
+      "mean_f": 0.9693211464,
+      "mean_j_and_f": 0.975014387,
+      "minimum_j": 0.9705114468,
+      "minimum_j_frame": 22,
+      "minimum_f": 0.9302016708,
+      "minimum_f_frame": 28,
+      "inference_seconds": 17.018236473,
+      "fps": 4.407037129,
+      "peak_cuda_memory_bytes": 602774016
+    },
+    "absolute_j_and_f_difference": 0.8808480595
+  },
+  "ground_truth_available": true,
+  "ground_truth_scope": "DAVIS 2017 validation car-roundabout object 1, excluding first and last frames during evaluation.",
+  "quality_metrics_reported": ["DAVIS J", "DAVIS F", "DAVIS J&F"],
+  "conclusion": "On this sequence, a point on the door selected and propagated a car part, while points distributed over the vehicle selected the complete instance and produced substantially higher J&F.",
+  "limitations": [
+    "This is one vehicle sequence and does not establish a general effect size.",
+    "Runtime was measured once per condition and is not a throughput comparison.",
+    "The optional sam2._C extension was unavailable, so SAM2 hole-filling post-processing was skipped equally in both conditions."
+  ]
+}
