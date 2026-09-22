@@ -723,6 +723,88 @@ def _first_frame_review(report: dict[str, Any], first_overlay: str) -> tuple[str
     return first_overlay, guidance
 
 
+def _review_object_update(report: dict[str, Any]) -> dict[str, Any]:
+    choices = [
+        (
+            f"目标 {int(item['object_id'])} · {item['category']}",
+            int(item["object_id"]),
+        )
+        for item in report.get("objects", [])
+    ]
+    return gr.update(choices=choices, value=choices[0][1] if choices else None)
+
+
+def _add_first_frame_review_click(
+    first_overlay_path: str | None,
+    prompt_kind: str,
+    selected_object_id: int | float | None,
+    objects: list[dict[str, Any]] | None,
+    added_points: list[dict[str, Any]] | None,
+    event: gr.SelectData,
+) -> tuple[Image.Image, list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], str]:
+    if not first_overlay_path:
+        raise gr.Error("请先运行传播，再在首帧结果上补点。")
+    if selected_object_id is None:
+        raise gr.Error("请选择要补点的目标。")
+    selected = int(selected_object_id)
+    entries = [
+        {**item, "points": [dict(point) for point in item["points"]]}
+        for item in (objects or [])
+    ]
+    target = next((item for item in entries if int(item["object_id"]) == selected), None)
+    if target is None:
+        raise gr.Error("补点目标不存在，请重新运行传播。")
+    x, y = int(event.index[0]), int(event.index[1])
+    point = {"x": x, "y": y, "positive": prompt_kind == "正点"}
+    target["points"].append(point)
+    additions = [dict(item) for item in (added_points or [])]
+    additions.append({"object_id": selected, **point})
+    point_label = "正点" if point["positive"] else "负点"
+    status = (
+        f"已为目标 {selected} 添加{point_label} ({x}, {y})。"
+        "可继续补点、撤销最后一个补点，或用当前提示重新传播。"
+    )
+    return (
+        _render_object_prompts(first_overlay_path, entries, selected),
+        entries,
+        _object_summary(entries),
+        additions,
+        status,
+    )
+
+
+def _undo_first_frame_review_click(
+    first_overlay_path: str | None,
+    selected_object_id: int | float | None,
+    objects: list[dict[str, Any]] | None,
+    added_points: list[dict[str, Any]] | None,
+) -> tuple[Image.Image, list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], str]:
+    if not first_overlay_path:
+        raise gr.Error("请先运行传播，再撤销首帧补点。")
+    additions = [dict(item) for item in (added_points or [])]
+    if not additions:
+        raise gr.Error("当前没有可撤销的首帧补点。")
+    last = additions.pop()
+    object_id = int(last["object_id"])
+    entries = [
+        {**item, "points": [dict(point) for point in item["points"]]}
+        for item in (objects or [])
+    ]
+    target = next((item for item in entries if int(item["object_id"]) == object_id), None)
+    expected = {key: last[key] for key in ("x", "y", "positive")}
+    if target is None or not target["points"] or target["points"][-1] != expected:
+        raise gr.Error("提示点状态已经变化，无法安全撤销；请重新运行传播。")
+    target["points"].pop()
+    rendered_object_id = int(selected_object_id) if selected_object_id is not None else object_id
+    return (
+        _render_object_prompts(first_overlay_path, entries, rendered_object_id),
+        entries,
+        _object_summary(entries),
+        additions,
+        f"已撤销目标 {object_id} 的最后一个首帧补点。",
+    )
+
+
 def _run_multi_for_web(*args: Any) -> tuple[Any, ...]:
     preview, report, status, session_key = _run_multi_segmentation(*args)
     first_overlay = str(Path(args[0]["task_root"]) / "overlays" / "00000.jpg")
@@ -735,6 +817,9 @@ def _run_multi_for_web(*args: Any) -> tuple[Any, ...]:
         _anomaly_selector_update(report),
         review_overlay,
         review_guidance,
+        first_overlay,
+        _review_object_update(report),
+        [],
     )
 
 
@@ -1367,6 +1452,22 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 "运行传播后，请先检查首帧是否覆盖完整目标，再查看后续帧。",
                 elem_classes=["first-frame-review"],
             )
+            first_result_path = gr.State()
+            first_result_added_points = gr.State([])
+            with gr.Row():
+                first_result_object = gr.Dropdown(
+                    choices=[], label="首帧补点目标", interactive=True
+                )
+                first_result_kind = gr.Radio(
+                    ["正点", "负点"], value="正点", label="首帧补点类型"
+                )
+            with gr.Row():
+                undo_first_result_point = gr.Button(
+                    "撤销最后一个补点", elem_classes=["secondary-action"]
+                )
+                rerun_with_first_result_points = gr.Button(
+                    "用补点重新传播", variant="primary"
+                )
             with gr.Accordion("查看完整运行报告", open=False):
                 report = gr.JSON(label="运行结果与异常")
 
@@ -1450,7 +1551,42 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             ],
             outputs=[
                 preview, report, status, session_key, anomaly_selector,
-                first_result, first_frame_guidance,
+                first_result, first_frame_guidance, first_result_path,
+                first_result_object, first_result_added_points,
+            ],
+        )
+        first_result.select(
+            _add_first_frame_review_click,
+            inputs=[
+                first_result_path, first_result_kind, first_result_object,
+                objects_state, first_result_added_points,
+            ],
+            outputs=[
+                first_result, objects_state, object_table,
+                first_result_added_points, status,
+            ],
+        )
+        undo_first_result_point.click(
+            _undo_first_frame_review_click,
+            inputs=[
+                first_result_path, first_result_object,
+                objects_state, first_result_added_points,
+            ],
+            outputs=[
+                first_result, objects_state, object_table,
+                first_result_added_points, status,
+            ],
+        )
+        rerun_with_first_result_points.click(
+            _run_multi_for_web,
+            inputs=[
+                task_state, objects_state, checkpoint, config_value,
+                keep_largest, guard_reactivation,
+            ],
+            outputs=[
+                preview, report, status, session_key, anomaly_selector,
+                first_result, first_frame_guidance, first_result_path,
+                first_result_object, first_result_added_points,
             ],
         )
         export_bundle.click(

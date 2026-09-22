@@ -47,5 +47,6 @@
 - [DEV-15：多类别素材回归与 DAVIS 指标链路](DEV-15-multiclass-data-and-davis-evaluation.md)（2026-09-21）
 - [DEV-16：道路车辆首帧提示对照](DEV-16-road-traffic-prompt-comparison.md)（2026-09-21）
 - [DEV-17：首帧对象完整性复核](DEV-17-first-frame-completeness-review.md)（2026-09-21）
+- [DEV-18：结果区首帧补点与同任务重新传播](DEV-18-inplace-first-frame-rerun.md)（2026-09-22）
 
 新记录从 [模板](WEEKLY-TEMPLATE.md) 复制。实验数字必须能回到命令输出或原始文件。

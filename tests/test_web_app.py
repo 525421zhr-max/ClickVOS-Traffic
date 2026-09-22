@@ -14,6 +14,7 @@ from clickvos.web_app import (
     _ACTIVE_SESSIONS,
     _add_object,
     _add_object_click,
+    _add_first_frame_review_click,
     _anomaly_selector_update,
     _archive_history_task,
     _detect_mask_overlaps,
@@ -30,6 +31,7 @@ from clickvos.web_app import (
     _runtime_report,
     _save_runtime_prediction,
     _undo_guarded_candidate_masks,
+    _undo_first_frame_review_click,
     build_demo,
 )
 
@@ -65,6 +67,7 @@ def test_gradio_demo_builds_with_expected_title() -> None:
     values = {component.get("props", {}).get("value") for component in config["components"]}
     assert {
         "交通视频", "目标类别", "首帧分割检查", "完整传播预览", "运行结果与异常",
+        "首帧补点目标", "首帧补点类型",
         "修正帧号（从 0 开始）", "点击该帧添加修正提示",
         "重新激活保护（目标连续消失 3 帧后暂停可疑掩码）",
         "当前目标", "目标与提示点统计", "标注结果包（ZIP）",
@@ -72,7 +75,7 @@ def test_gradio_demo_builds_with_expected_title() -> None:
         "历史任务标注包（ZIP）",
         "清理范围预览", "输入完整任务编号以确认",
     } <= labels
-    assert "撤销本次候选确认" in values
+    assert {"撤销本次候选确认", "撤销最后一个补点", "用补点重新传播"} <= values
 
 
 def test_first_frame_review_warns_when_an_object_has_only_one_positive_point() -> None:
@@ -127,6 +130,7 @@ def test_web_run_returns_first_frame_overlay_and_guidance(tmp_path: Path) -> Non
         "objects": [
             {
                 "object_id": 1,
+                "category": "vehicle",
                 "initial_points": [{"x": 5, "y": 6, "positive": True}],
             }
         ],
@@ -138,9 +142,63 @@ def test_web_run_returns_first_frame_overlay_and_guidance(tmp_path: Path) -> Non
     ):
         outputs = _run_multi_for_web(task_state)
 
-    assert len(outputs) == 7
+    assert len(outputs) == 10
     assert outputs[5] == str(tmp_path / "overlays" / "00000.jpg")
     assert "目标 1 目前只有一个正点" in outputs[6]
+    assert outputs[7] == str(tmp_path / "overlays" / "00000.jpg")
+    assert outputs[8]["value"] == 1
+    assert outputs[9] == []
+
+
+def test_first_frame_review_click_adds_and_undoes_a_prompt(tmp_path: Path) -> None:
+    overlay = tmp_path / "00000.jpg"
+    Image.new("RGB", (30, 20), "white").save(overlay)
+    objects = [
+        {
+            "object_id": 1,
+            "category": "vehicle",
+            "points": [{"x": 4, "y": 5, "positive": True}],
+        }
+    ]
+
+    class Click:
+        index = (18, 12)
+
+    rendered, updated, summary, additions, status = _add_first_frame_review_click(
+        str(overlay), "负点", 1, objects, [], Click()
+    )
+
+    assert rendered.size == (30, 20)
+    assert updated[0]["points"][-1] == {"x": 18, "y": 12, "positive": False}
+    assert summary[0]["negative_points"] == 1
+    assert additions == [{"object_id": 1, "x": 18, "y": 12, "positive": False}]
+    assert "用当前提示重新传播" in status
+    assert objects[0]["points"] == [{"x": 4, "y": 5, "positive": True}]
+
+    _, restored, restored_summary, remaining, undo_status = _undo_first_frame_review_click(
+        str(overlay), 1, updated, additions
+    )
+
+    assert restored == objects
+    assert restored_summary[0]["negative_points"] == 0
+    assert remaining == []
+    assert "已撤销目标 1" in undo_status
+
+
+def test_first_frame_review_undo_rejects_stale_prompt_state(tmp_path: Path) -> None:
+    overlay = tmp_path / "00000.jpg"
+    Image.new("RGB", (20, 20), "white").save(overlay)
+    objects = [
+        {
+            "object_id": 1,
+            "category": "vehicle",
+            "points": [{"x": 4, "y": 5, "positive": True}],
+        }
+    ]
+    additions = [{"object_id": 1, "x": 9, "y": 9, "positive": False}]
+
+    with pytest.raises(gr.Error, match="无法安全撤销"):
+        _undo_first_frame_review_click(str(overlay), 1, objects, additions)
 
 
 def test_runtime_guard_preserves_candidate_and_writes_empty_final_mask(tmp_path: Path) -> None:
