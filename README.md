@@ -97,7 +97,8 @@ python -m clickvos.export bundle outputs/tasks/<task-id>
 - DAVIS `bike-packing` 自行车对象已跑通官方指标链路：中间 67 帧实测 J=0.7445、F=0.7796、J&F=0.7620。该片段不是合格的交通场景评估样本，只作为指标流水线验证。
 - DAVIS 验证集 `car-roundabout` 已完成第一条道路交通真值对照：单个正点只选中车门局部，J&F=0.0942；覆盖整车的 4 个正点加 1 个背景负点达到 J&F=0.9750。该结果只适用于这一条序列。
 - DAVIS `crossing` 道路行人对象的 52 帧传播已完成，中间 50 帧 J&F=0.9519；这条序列没有触发消失后重现保护，不能用于判断误拦截率。
-- 最近一次自动化测试结果为 `47 passed`（2026-09-22）。
+- 候选确认现在只恢复本次重新出现到下一次重新出现之间的掩码，不会一次放行后续所有候选；该边界已通过工程回归，尚无真实二次重现视频验证。
+- 最近一次自动化测试结果为 `56 passed`（2026-09-23）。
 
 详细数据在 [`docs/research/results/`](docs/research/results/)，对应的命令、环境和问题记录在 [`docs/checkpoints/`](docs/checkpoints/)。
 

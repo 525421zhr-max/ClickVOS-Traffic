@@ -857,10 +857,24 @@ def _restore_guarded_candidate_masks(
     runtime: dict[str, Any], object_id: int, start_frame: int
 ) -> list[int]:
     item = runtime["objects"][object_id]
+    guard = item["reactivation_guard"]
+    if guard is None:
+        raise ValueError("该任务未启用重新激活保护。")
+    minimum_empty_frames = guard.minimum_empty_frames
+    event_frames = sorted(
+        anomaly.frame_index
+        for anomaly in detect_reactivation(
+            item["model_mask_foreground_pixels"], minimum_empty_frames
+        )
+    )
+    if start_frame not in event_frames:
+        raise ValueError("只能确认消失后重新激活的起始帧，请从异常列表定位。")
+    next_event = next((frame for frame in event_frames if frame > start_frame), None)
     guarded_entries = [
         dict(entry)
         for entry in item["guarded_frames"]
         if int(entry["frame_index"]) >= start_frame
+        and (next_event is None or int(entry["frame_index"]) < next_event)
     ]
     restored = sorted(
         {

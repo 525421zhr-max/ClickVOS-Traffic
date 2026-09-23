@@ -297,6 +297,52 @@ def test_runtime_guard_preserves_candidate_and_writes_empty_final_mask(tmp_path:
     ]
 
 
+def test_guard_confirmation_stops_at_next_reactivation(tmp_path: Path) -> None:
+    frames = []
+    for index in range(10):
+        path = tmp_path / f"{index:05d}.jpg"
+        Image.new("RGB", (4, 4), "white").save(path)
+        frames.append(path)
+    task_root = tmp_path / "task"
+    (task_root / "masks").mkdir(parents=True)
+    (task_root / "overlays").mkdir()
+    item = {
+        "category": "vehicle",
+        "points": [{"x": 1, "y": 1, "positive": True}],
+        "mask_foreground_pixels": {},
+        "model_mask_foreground_pixels": {},
+        "raw_mask_foreground_pixels": {},
+        "mask_component_counts": {},
+        "model_mask_component_counts": {},
+        "reactivation_guard": ReactivationGuard(3),
+        "guarded_frames": [],
+        "guard_confirmed_frames": set(),
+    }
+    runtime = {
+        "frames": frames,
+        "task_root": task_root,
+        "keep_largest": False,
+        "objects": {1: item},
+        "guard_reactivation": True,
+        "corrections": [],
+    }
+    visible_frames = {0, 4, 5, 9}
+    for index in range(10):
+        mask = np.ones((4, 4), dtype=bool) if index in visible_frames else np.zeros((4, 4), dtype=bool)
+        _save_runtime_prediction(runtime, FramePrediction(index, (1,), (mask,)))
+
+    assert [entry["frame_index"] for entry in item["guarded_frames"]] == [4, 5, 9]
+    with pytest.raises(ValueError, match="起始帧"):
+        _restore_guarded_candidate_masks(runtime, 1, 5)
+    assert _restore_guarded_candidate_masks(runtime, 1, 4) == [4, 5]
+    assert item["mask_foreground_pixels"]["00009.png"] == 0
+    assert [entry["frame_index"] for entry in item["guarded_frames"]] == [9]
+    assert _restore_guarded_candidate_masks(runtime, 1, 9) == [9]
+    assert _undo_guarded_candidate_masks(runtime, 1, 4) == [4, 5]
+    assert item["mask_foreground_pixels"]["00009.png"] == 16
+    assert [entry["frame_index"] for entry in item["guarded_frames"]] == [4, 5]
+
+
 def test_prompt_points_are_kept_separate_for_each_object(tmp_path: Path) -> None:
     frame = tmp_path / "frame.jpg"
     Image.new("RGB", (20, 20), "white").save(frame)
