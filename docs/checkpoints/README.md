@@ -52,5 +52,6 @@
 - [DEV-20：道路行人真值验证与重新激活保护筛查](DEV-20-road-pedestrian-gt-and-guard-audit.md)（2026-09-23）
 - [DEV-21：KITTI MOTS 标注缺席候选筛选](DEV-21-kitti-mots-gap-screen.md)（2026-09-23）
 - [DEV-22：候选确认范围收紧与 KITTI 图像访问核查](DEV-22-bounded-reactivation-confirmation.md)（2026-09-23）
+- [DEV-23：任务编号冲突保护](DEV-23-task-id-collision-protection.md)（2026-09-23）
 
 新记录从 [模板](WEEKLY-TEMPLATE.md) 复制。实验数字必须能回到命令输出或原始文件。

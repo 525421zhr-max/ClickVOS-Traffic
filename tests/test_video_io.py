@@ -32,6 +32,23 @@ def test_create_task_layout_rejects_unsafe_id(tmp_path: Path) -> None:
         create_task_layout(tmp_path, "../outside")
 
 
+def test_create_task_layout_never_reuses_existing_task(tmp_path: Path) -> None:
+    existing = create_task_layout(tmp_path, "traffic_001")
+    original = existing.metadata
+    original.write_text('{"status":"frames_extracted"}', encoding="utf-8")
+    with pytest.raises(VideoIOError) as captured:
+        create_task_layout(tmp_path, "traffic_001")
+    assert captured.value.code == ErrorCode.TASK_CONFLICT
+    assert original.read_text(encoding="utf-8") == '{"status":"frames_extracted"}'
+
+
+def test_create_task_layout_rejects_empty_existing_directory(tmp_path: Path) -> None:
+    (tmp_path / "reserved").mkdir()
+    with pytest.raises(VideoIOError) as captured:
+        create_task_layout(tmp_path, "reserved")
+    assert captured.value.code == ErrorCode.TASK_CONFLICT
+
+
 def test_probe_video_parses_ffprobe_json(tmp_path: Path) -> None:
     video = tmp_path / "sample.mp4"
     video.write_bytes(b"video")

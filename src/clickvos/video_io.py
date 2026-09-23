@@ -135,7 +135,17 @@ def create_task_layout(tasks_root: Path, task_id: str | None = None) -> TaskLayo
     identifier = task_id or uuid.uuid4().hex[:12]
     if not TASK_ID_PATTERN.fullmatch(identifier):
         raise ValueError("task ID must contain 1-64 ASCII letters, digits, underscores, or hyphens")
-    root = tasks_root.expanduser().resolve() / identifier
+    root_directory = tasks_root.expanduser().resolve()
+    root_directory.mkdir(parents=True, exist_ok=True)
+    root = root_directory / identifier
+    try:
+        root.mkdir()
+    except FileExistsError as exc:
+        raise VideoIOError(
+            ErrorCode.TASK_CONFLICT,
+            "任务编号已存在，请使用新的任务编号。",
+            str(root),
+        ) from exc
     layout = TaskLayout(
         root=root,
         source=root / "source",
