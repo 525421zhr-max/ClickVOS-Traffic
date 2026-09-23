@@ -95,6 +95,22 @@
 
 该序列满足“道路交通画面、逐帧实例真值、目标身份连续”的小样本评估条件。它只包含单个车辆对象，尚不能覆盖行人、非机动车、严重遮挡或多目标交互。
 
+## davis-003-crossing
+
+| 字段 | 记录 |
+| --- | --- |
+| 数据集 | DAVIS 2017 train/val 480p，`crossing` 序列 |
+| 官方下载页 | `https://davischallenge.org/davis2017/code.html` |
+| 官方压缩包 | `https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-trainval-480p.zip` |
+| 获取方式 | 2026-09-23 用 `remotezip==0.12.6` 和 `scripts/fetch_davis_sequence.py` 按 HTTP Range 提取本序列；52 张 RGB 帧与 52 张实例真值完整，854×480，文件合计 10,003,414 字节 |
+| 标注对象 | 对象 1、2：行人；对象 3：货车。本轮固定对象 1，即首帧右侧深色衣服行人 |
+| 场景 | 城市道路斑马线，两个行人过街，货车和其他车辆在画面中 |
+| 数据许可 | 压缩包 `DAVIS/README.md` 的 Terms of Use 为 CC BY-NC 4.0；仅用于本项目非商业研究，不随软件或 Git 仓库分发 |
+| 原视频来源 | 压缩包 `DAVIS/SOURCES.md` 为 `crossing` 列出 `https://www.youtube.com/watch?v=YzpkoPGclas`；公开再利用时还需核对原视频来源条款 |
+| 本项目用途 | 道路行人逐帧真值质量验证，以及重新激活保护触发条件筛查 |
+
+本序列的同一目标在本轮 SAM2 传播中没有连续空掩码，因此不能用于估计保护规则的误拦截率。
+
 ## 已拒绝候选
 
 ### traffic-candidate-rejected-firstperson-bike

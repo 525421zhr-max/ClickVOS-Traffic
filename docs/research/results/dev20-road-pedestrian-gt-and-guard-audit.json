@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/DEV-20-road-pedestrian-gt-and-guard-audit.md",
+  "checkpoint": "DEV-20",
+  "date": "2026-09-23",
+  "status": "road_pedestrian_gt_complete_guard_reappearance_inconclusive",
+  "input": {
+    "source_id": "davis-003-crossing",
+    "sequence": "crossing",
+    "category": "pedestrian",
+    "object_id": 1,
+    "frame_count": 52,
+    "evaluated_frame_count": 50,
+    "positive_points_xy": [[370, 300], [365, 270], [375, 355]],
+    "negative_points_xy": [[285, 285]],
+    "postprocessing": "none",
+    "guard_minimum_empty_frames": 3
+  },
+  "measurements": {
+    "first_frame_iou": 0.8749743799959008,
+    "mean_j": 0.9163733184939125,
+    "mean_f": 0.9873354957064581,
+    "mean_j_and_f": 0.9518544071001853,
+    "inference_seconds": 8.56895948600004,
+    "fps_including_state_init": 6.068414734012638,
+    "peak_cuda_memory_bytes": 602774016,
+    "guard_trigger_count": 0,
+    "guard_false_block_status": "inconclusive_no_reactivation_event"
+  },
+  "ground_truth_available": true,
+  "ground_truth_scope": "DAVIS 2017 crossing instance 1; J/F excludes first and last frames.",
+  "quality_metrics_reported": ["DAVIS J", "DAVIS F", "DAVIS J&F", "first-frame IoU"],
+  "conclusion": "One fixed-prompt road pedestrian sequence completed with strong local J/F, but no empty-mask reactivation occurred, so guard false suppression could not be assessed.",
+  "limitations": [
+    "Single sequence and single instance; not a pedestrian-category mean.",
+    "No observed reactivation trigger; zero observed false blocks is not a false-block rate.",
+    "Optional sam2._C hole-filling extension was unavailable.",
+    "Original DAVIS source terms need separate review before public media display."
+  ]
+}

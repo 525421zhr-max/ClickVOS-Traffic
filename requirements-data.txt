@@ -1,0 +1,2 @@
+# Optional HTTP-range reader for one-sequence DAVIS 2017 retrieval.
+remotezip==0.12.6
