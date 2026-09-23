@@ -33,10 +33,14 @@ from clickvos.sam2_engine import (
 )
 from clickvos.task_store import (
     CleanupPreview,
+    RestorePreview,
     archive_task,
+    list_archived_tasks,
     list_tasks,
     load_task,
     preview_task_cleanup,
+    preview_task_restore,
+    restore_archived_task,
 )
 from clickvos.video_io import prepare_task
 
@@ -1201,6 +1205,80 @@ def _archive_history_task(
         raise _friendly_error(exc) from exc
 
 
+def _refresh_task_trash(config_path: str) -> tuple[dict[str, Any], str]:
+    try:
+        config = load_config(Path(config_path))
+        tasks, skipped = list_archived_tasks(config.tasks_root)
+        choices = [(task.choice_label, task.archive_name) for task in tasks]
+        message = f"回收区有 {len(choices)} 个可恢复任务。"
+        if skipped:
+            message += f" 另有 {skipped} 个无法读取的目录已跳过。"
+        return gr.update(choices=choices, value=choices[0][1] if choices else None), message
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+
+
+def _preview_trash_restore(
+    config_path: str, archive_name: str | None
+) -> tuple[dict[str, Any], dict[str, Any], str, str]:
+    if not archive_name:
+        raise gr.Error("请先选择一个回收区任务。")
+    try:
+        config = load_config(Path(config_path))
+        preview = preview_task_restore(config.tasks_root, archive_name)
+        details = {
+            "task_id": preview.task_id,
+            "archive_name": archive_name,
+            "file_count": preview.file_count,
+            "size_bytes": preview.size_bytes,
+            "size_human": _format_bytes(preview.size_bytes),
+            "target_root": preview.target_root,
+            "target_occupied": Path(preview.target_root).exists(),
+        }
+        message = (
+            f"已预览 {preview.task_id}：{preview.file_count} 个文件，"
+            f"约 {_format_bytes(preview.size_bytes)}。"
+        )
+        if details["target_occupied"]:
+            message += " 原任务编号已被占用，当前不能恢复。"
+        else:
+            message += "输入完整任务编号后可恢复到历史任务列表。"
+        return details, preview.as_dict(), "", message
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+
+
+def _restore_trash_task(
+    config_path: str,
+    archive_name: str | None,
+    confirmation: str,
+    restore_state: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str, str, str]:
+    if not archive_name or not restore_state:
+        raise gr.Error("请先选择回收区任务并预览恢复范围。")
+    try:
+        config = load_config(Path(config_path))
+        expected = RestorePreview(**restore_state)
+        with _SESSION_LOCK:
+            restored = restore_archived_task(
+                config.tasks_root, archive_name, confirmation, expected
+            )
+        history, _ = list_tasks(config.tasks_root)
+        archived, skipped = list_archived_tasks(config.tasks_root)
+        history_choices = [(task.choice_label, task.task_id) for task in history]
+        trash_choices = [(task.choice_label, task.archive_name) for task in archived]
+        message = f"任务 {restored.name} 已恢复到历史任务列表。"
+        if skipped:
+            message += f" 回收区另有 {skipped} 个无法读取的目录已跳过。"
+        return (
+            gr.update(choices=history_choices, value=restored.name),
+            gr.update(choices=trash_choices, value=trash_choices[0][1] if trash_choices else None),
+            {}, {}, "", message,
+        )
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+
+
 def _load_correction_frame(
     task_state: dict[str, Any] | None,
     frame_index: float | int,
@@ -1340,6 +1418,7 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
         first_frame_path = gr.State()
         session_key = gr.State()
         cleanup_state = gr.State({})
+        restore_state = gr.State({})
         config_value = gr.State(str(config_path))
 
         status = gr.Textbox(
@@ -1348,10 +1427,11 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             interactive=False,
             elem_classes=["status-strip"],
         )
-        with gr.Accordion("历史任务（只读）", open=False, elem_classes=["step-panel"]):
+        with gr.Accordion("历史任务与回收区", open=False, elem_classes=["step-panel"]):
             gr.Markdown(
                 "这里读取本机 `outputs/tasks` 中已有的结果，不会重新加载模型或改写掩码。"
-                "历史任务可以预览和再次导出；如需继续补点，请用原视频重新运行传播。",
+                "历史任务可以预览和再次导出；可将清理过的任务从回收区恢复。"
+                "如需继续补点，请用原视频重新运行传播。",
                 elem_classes=["section-note"],
             )
             with gr.Row():
@@ -1389,6 +1469,29 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                     archive_history = gr.Button(
                         "移入可恢复回收区", elem_classes=["danger-soft"]
                     )
+            with gr.Accordion("从回收区恢复任务", open=False):
+                gr.Markdown(
+                    "恢复前查看文件数和目标位置，并输入完整任务编号。"
+                    "如原任务编号已被占用，恢复会被拒绝。",
+                    elem_classes=["section-note"],
+                )
+                with gr.Row():
+                    trash_selector = gr.Dropdown(
+                        choices=[], label="回收区任务", interactive=True
+                    )
+                    refresh_trash = gr.Button(
+                        "刷新回收区", elem_classes=["secondary-action"]
+                    )
+                trash_status = gr.Markdown("正在读取回收区。")
+                restore_preview = gr.JSON(label="恢复范围预览")
+                restore_confirmation = gr.Textbox(
+                    label="输入完整任务编号以恢复", placeholder="例如：7e3d167b0b81"
+                )
+                with gr.Row():
+                    preview_restore = gr.Button(
+                        "预览恢复范围", elem_classes=["secondary-action"]
+                    )
+                    restore_task_button = gr.Button("恢复到历史任务")
 
         with gr.Accordion("1. 准备交通视频", open=True, elem_classes=["step-panel"]):
             with gr.Row(equal_height=False):
@@ -1659,7 +1762,7 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 cleanup_confirmation, history_status,
             ],
         )
-        archive_history.click(
+        archive_event = archive_history.click(
             _archive_history_task,
             inputs=[
                 config_value, history_selector,
@@ -1671,10 +1774,38 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 history_download, history_status,
             ],
         )
+        archive_event.then(
+            _refresh_task_trash,
+            inputs=config_value,
+            outputs=[trash_selector, trash_status],
+        )
+        refresh_trash.click(
+            _refresh_task_trash,
+            inputs=config_value,
+            outputs=[trash_selector, trash_status],
+        )
+        preview_restore.click(
+            _preview_trash_restore,
+            inputs=[config_value, trash_selector],
+            outputs=[restore_preview, restore_state, restore_confirmation, trash_status],
+        )
+        restore_task_button.click(
+            _restore_trash_task,
+            inputs=[config_value, trash_selector, restore_confirmation, restore_state],
+            outputs=[
+                history_selector, trash_selector, restore_preview,
+                restore_state, restore_confirmation, trash_status,
+            ],
+        )
         demo.load(
             _refresh_task_history,
             inputs=config_value,
             outputs=[history_selector, history_status],
+        )
+        demo.load(
+            _refresh_task_trash,
+            inputs=config_value,
+            outputs=[trash_selector, trash_status],
         )
     return demo
 

@@ -25,7 +25,10 @@ from clickvos.web_app import (
     _launch_options,
     _open_history_task,
     _preview_history_cleanup,
+    _preview_trash_restore,
     _refresh_task_history,
+    _refresh_task_trash,
+    _restore_trash_task,
     _restore_guarded_candidate_masks,
     _run_multi_for_web,
     _runtime_report,
@@ -74,8 +77,12 @@ def test_gradio_demo_builds_with_expected_title() -> None:
         "待复核异常帧", "本地历史任务", "历史预览", "任务摘要",
         "历史任务标注包（ZIP）",
         "清理范围预览", "输入完整任务编号以确认",
+        "回收区任务", "恢复范围预览", "输入完整任务编号以恢复",
     } <= labels
-    assert {"撤销本次候选确认", "撤销最后一个补点", "用补点重新传播"} <= values
+    assert {
+        "撤销本次候选确认", "撤销最后一个补点", "用补点重新传播",
+        "预览恢复范围", "恢复到历史任务",
+    } <= values
 
 
 def test_first_frame_review_warns_when_an_object_has_only_one_positive_point() -> None:
@@ -411,6 +418,39 @@ def test_history_cleanup_callbacks_preview_and_archive_task(tmp_path: Path) -> N
     assert outputs[0]["value"] is None
     assert outputs[2] == {}
     assert "尚未永久删除" in outputs[-1]
+
+
+def test_trash_callbacks_preview_and_restore_task(tmp_path: Path) -> None:
+    task = tmp_path / "tasks" / "task-001"
+    task.mkdir(parents=True)
+    (task / "task.json").write_text(
+        json.dumps({"task_id": "task-001", "video": {"path": "/data/traffic.mp4"}}),
+        encoding="utf-8",
+    )
+    config = SimpleNamespace(tasks_root=tmp_path / "tasks")
+
+    with patch("clickvos.web_app.load_config", return_value=config):
+        _, cleanup_state, _, _ = _preview_history_cleanup("test-config.json", "task-001")
+        _archive_history_task(
+            "test-config.json", "task-001", "task-001", cleanup_state, None
+        )
+        trash_update, trash_message = _refresh_task_trash("test-config.json")
+        archive_name = trash_update["value"]
+        details, restore_state, confirmation, preview_message = _preview_trash_restore(
+            "test-config.json", archive_name
+        )
+        outputs = _restore_trash_task(
+            "test-config.json", archive_name, "task-001", restore_state
+        )
+
+    assert "1 个可恢复任务" in trash_message
+    assert details["target_occupied"] is False
+    assert confirmation == ""
+    assert "输入完整任务编号" in preview_message
+    assert outputs[0]["value"] == "task-001"
+    assert outputs[1]["value"] is None
+    assert "已恢复" in outputs[-1]
+    assert task.exists()
 
 
 def test_anomaly_selector_locates_object_and_frame() -> None:

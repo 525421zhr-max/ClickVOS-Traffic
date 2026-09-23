@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -70,6 +71,34 @@ class ArchivedTask:
     archived_root: Path
     file_count: int
     size_bytes: int
+
+
+@dataclass(frozen=True)
+class ArchivedTaskSummary:
+    archive_name: str
+    task_id: str
+    archived_at: str
+    video_name: str
+    file_count: int
+    size_bytes: int
+
+    @property
+    def choice_label(self) -> str:
+        timestamp = datetime.fromisoformat(self.archived_at).astimezone().strftime("%m-%d %H:%M")
+        return f"{self.task_id} · {timestamp} · {self.file_count} 个文件"
+
+
+@dataclass(frozen=True)
+class RestorePreview:
+    archive_name: str
+    task_id: str
+    file_count: int
+    size_bytes: int
+    latest_mtime_ns: int
+    target_root: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 def resolve_task_root(tasks_root: Path, task_id: str) -> Path:
@@ -289,3 +318,95 @@ def archive_task(
         json.dumps(archive_record, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return ArchivedTask(task_id, destination, actual.file_count, actual.size_bytes)
+
+
+def _archive_root(tasks_root: Path, archive_name: str) -> Path:
+    trash_root = tasks_root.expanduser().resolve().parent / "task_trash"
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,90}", archive_name):
+        raise TaskStoreError(ErrorCode.TASK_INVALID, "回收区目录名称无效。", archive_name)
+    candidate = trash_root / archive_name
+    if candidate.is_symlink() or candidate.resolve().parent != trash_root or not candidate.is_dir():
+        raise TaskStoreError(ErrorCode.TASK_NOT_FOUND, "找不到该回收区任务。", str(candidate))
+    return candidate
+
+
+def _read_archive(tasks_root: Path, archive_name: str) -> tuple[Path, dict[str, Any], dict[str, Any]]:
+    root = _archive_root(tasks_root, archive_name)
+    record = _read_json(root / ".archive.json", "归档记录")
+    metadata = _read_json(root / "task.json", "任务信息")
+    task_id = record.get("task_id")
+    if (
+        record.get("schema_version") != 1
+        or not isinstance(task_id, str)
+        or not TASK_ID_PATTERN.fullmatch(task_id)
+        or not re.fullmatch(re.escape(task_id) + r"-\d{8}T\d{12}Z", archive_name)
+        or metadata.get("task_id") != task_id
+        or record.get("original_tasks_root") != str(tasks_root.expanduser().resolve())
+    ):
+        raise TaskStoreError(ErrorCode.TASK_INVALID, "回收区记录与任务目录不一致。", str(root))
+    try:
+        datetime.fromisoformat(record["archived_at"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TaskStoreError(ErrorCode.TASK_INVALID, "归档时间无效。", str(root)) from exc
+    return root, record, metadata
+
+
+def list_archived_tasks(
+    tasks_root: Path, maximum: int = 200
+) -> tuple[list[ArchivedTaskSummary], int]:
+    if maximum < 1:
+        raise ValueError("maximum must be positive")
+    trash_root = tasks_root.expanduser().resolve().parent / "task_trash"
+    if not trash_root.exists():
+        return [], 0
+    if not trash_root.is_dir():
+        raise TaskStoreError(ErrorCode.TASK_INVALID, "任务回收区不是有效文件夹。", str(trash_root))
+    summaries: list[ArchivedTaskSummary] = []
+    skipped = 0
+    for path in trash_root.iterdir():
+        if not path.is_dir() or path.is_symlink():
+            skipped += 1
+            continue
+        try:
+            root, record, metadata = _read_archive(tasks_root, path.name)
+            count, size, _ = _task_usage(root)
+            video = metadata.get("video") if isinstance(metadata.get("video"), dict) else {}
+            summaries.append(
+                ArchivedTaskSummary(
+                    archive_name=path.name,
+                    task_id=record["task_id"],
+                    archived_at=record["archived_at"],
+                    video_name=Path(str(video.get("path", "unknown")).replace("\\", "/")).name,
+                    file_count=count,
+                    size_bytes=size,
+                )
+            )
+        except (TaskStoreError, OSError, TypeError, ValueError):
+            skipped += 1
+    summaries.sort(key=lambda item: item.archived_at, reverse=True)
+    return summaries[:maximum], skipped
+
+
+def preview_task_restore(tasks_root: Path, archive_name: str) -> RestorePreview:
+    root, record, _ = _read_archive(tasks_root, archive_name)
+    count, size, latest_mtime_ns = _task_usage(root)
+    target = tasks_root.expanduser().resolve() / record["task_id"]
+    return RestorePreview(archive_name, record["task_id"], count, size, latest_mtime_ns, str(target))
+
+
+def restore_archived_task(
+    tasks_root: Path, archive_name: str, confirmation: str, expected: RestorePreview
+) -> Path:
+    if expected.archive_name != archive_name or confirmation != expected.task_id:
+        raise TaskStoreError(ErrorCode.TASK_INVALID, "恢复确认不匹配，请重新预览并输入完整任务编号。", archive_name)
+    root, record, _ = _read_archive(tasks_root, archive_name)
+    actual = preview_task_restore(tasks_root, archive_name)
+    if actual != expected:
+        raise TaskStoreError(ErrorCode.TASK_CONFLICT, "回收区内容在预览后发生变化，请重新预览。", archive_name)
+    destination = tasks_root.expanduser().resolve() / record["task_id"]
+    if destination.exists() or destination.is_symlink():
+        raise TaskStoreError(ErrorCode.TASK_CONFLICT, "原任务编号已被占用，不能覆盖现有任务。", str(destination))
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    root.rename(destination)
+    (destination / ".archive.json").unlink()
+    return destination

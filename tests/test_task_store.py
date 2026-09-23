@@ -10,10 +10,13 @@ from clickvos.errors import ErrorCode
 from clickvos.task_store import (
     TaskStoreError,
     archive_task,
+    list_archived_tasks,
     list_tasks,
     load_task,
     preview_task_cleanup,
+    preview_task_restore,
     resolve_task_root,
+    restore_archived_task,
 )
 
 
@@ -137,3 +140,68 @@ def test_archive_task_rejects_wrong_confirmation_active_or_changed_task(
     (root / "new-output.txt").write_text("changed", encoding="utf-8")
     with pytest.raises(TaskStoreError, match="预览后发生变化"):
         archive_task(tasks_root, "task-001", "task-001", preview)
+
+
+def test_archived_task_can_be_previewed_and_restored_without_losing_files(tmp_path: Path) -> None:
+    tasks_root = tmp_path / "tasks"
+    original = _write_task(tasks_root, "task-001")
+    archive = archive_task(
+        tasks_root, "task-001", "task-001", preview_task_cleanup(tasks_root, "task-001")
+    )
+    archived, skipped = list_archived_tasks(tasks_root)
+    preview = preview_task_restore(tasks_root, archive.archived_root.name)
+
+    assert skipped == 0
+    assert len(archived) == 1
+    assert archived[0].video_name == "traffic.mp4"
+    assert archived[0].file_count == preview.file_count
+    assert preview.file_count == 4  # task.json, result.json, preview.mp4, archive record
+
+    with pytest.raises(TaskStoreError, match="恢复确认不匹配"):
+        restore_archived_task(tasks_root, archive.archived_root.name, "wrong", preview)
+    assert archive.archived_root.exists()
+
+    restored = restore_archived_task(
+        tasks_root, archive.archived_root.name, "task-001", preview
+    )
+    assert restored == original.resolve()
+    assert not archive.archived_root.exists()
+    assert not (restored / ".archive.json").exists()
+    assert load_task(tasks_root, "task-001").summary.has_preview
+
+
+def test_restore_rejects_occupied_target_and_changed_archive(tmp_path: Path) -> None:
+    tasks_root = tmp_path / "tasks"
+    _write_task(tasks_root, "task-001")
+    archive = archive_task(
+        tasks_root, "task-001", "task-001", preview_task_cleanup(tasks_root, "task-001")
+    )
+    preview = preview_task_restore(tasks_root, archive.archived_root.name)
+    occupied = _write_task(tasks_root, "task-001", completed=False)
+    with pytest.raises(TaskStoreError, match="已被占用"):
+        restore_archived_task(tasks_root, archive.archived_root.name, "task-001", preview)
+    assert occupied.exists()
+    assert archive.archived_root.exists()
+
+    occupied.rename(tasks_root / "other")
+    (archive.archived_root / "changed.txt").write_text("changed", encoding="utf-8")
+    with pytest.raises(TaskStoreError, match="预览后发生变化"):
+        restore_archived_task(tasks_root, archive.archived_root.name, "task-001", preview)
+
+
+def test_restore_skips_inconsistent_archive_record(tmp_path: Path) -> None:
+    tasks_root = tmp_path / "tasks"
+    _write_task(tasks_root, "task-001")
+    archive = archive_task(
+        tasks_root, "task-001", "task-001", preview_task_cleanup(tasks_root, "task-001")
+    )
+    marker = archive.archived_root / ".archive.json"
+    record = json.loads(marker.read_text(encoding="utf-8"))
+    record["task_id"] = "another-task"
+    marker.write_text(json.dumps(record), encoding="utf-8")
+
+    archived, skipped = list_archived_tasks(tasks_root)
+    assert archived == []
+    assert skipped == 1
+    with pytest.raises(TaskStoreError, match="不一致"):
+        preview_task_restore(tasks_root, archive.archived_root.name)
