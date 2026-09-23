@@ -11,6 +11,7 @@ class ErrorCode(StrEnum):
     VIDEO_EMPTY = "video_empty"
     VIDEO_UNSUPPORTED = "video_unsupported"
     VIDEO_TOO_LARGE = "video_too_large"
+    VIDEO_TOO_MANY_FRAMES = "video_too_many_frames"
     VIDEO_INSPECTION_FAILED = "video_inspection_failed"
     FRAME_EXTRACTION_FAILED = "frame_extraction_failed"
     TASK_CONFLICT = "task_conflict"

@@ -157,6 +157,7 @@ def _prepare_video(video_path: str | None, config_path: str) -> tuple[str, dict[
             Path(video_path),
             config.tasks_root,
             max_bytes=config.video.max_upload_bytes,
+            max_frames=config.video.max_frames,
             quality=config.video.jpeg_quality,
         )
         state = {

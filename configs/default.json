@@ -2,6 +2,7 @@
   "schema_version": 1,
   "video": {
     "max_upload_bytes": 209715200,
+    "max_frames": 300,
     "frame_format": "jpg",
     "jpeg_quality": 2
   },

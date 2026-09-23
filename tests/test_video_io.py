@@ -12,6 +12,7 @@ from clickvos.video_io import (
     VideoIOError,
     VideoMetadata,
     create_task_layout,
+    extract_frames,
     prepare_task,
     probe_video,
     validate_video,
@@ -125,3 +126,34 @@ def test_prepare_task_marks_success_after_frame_extraction(tmp_path: Path) -> No
     assert record["status"] == "frames_extracted"
     assert record["extracted_frame_count"] == len(frames) == 2
     assert "error" not in record
+
+
+def test_prepare_task_rejects_reported_frame_overflow_before_creating_task(tmp_path: Path) -> None:
+    video = tmp_path / "traffic.mp4"
+    video.write_bytes(b"video")
+    metadata = VideoMetadata(str(video), 4, 4, 30.0, 301, 10.1, "h264", 5)
+    with patch("clickvos.video_io.probe_video", return_value=metadata):
+        with pytest.raises(VideoIOError) as captured:
+            prepare_task(video, tmp_path / "tasks", "too-long", max_frames=300)
+    assert captured.value.code == ErrorCode.VIDEO_TOO_MANY_FRAMES
+    assert not (tmp_path / "tasks" / "too-long").exists()
+
+
+def test_extract_frames_caps_unknown_length_before_accepting(tmp_path: Path) -> None:
+    video = tmp_path / "traffic.mp4"
+    video.write_bytes(b"video")
+    frames_dir = tmp_path / "frames"
+    commands = []
+
+    def fake_ffmpeg(command, **kwargs):
+        commands.append(command)
+        for index in range(1, 5):
+            (frames_dir / f"{index:05d}.jpg").write_bytes(b"frame")
+        return subprocess.CompletedProcess(command, 0)
+
+    with patch("clickvos.video_io.subprocess.run", side_effect=fake_ffmpeg):
+        with pytest.raises(VideoIOError) as captured:
+            extract_frames(video, frames_dir, max_frames=3)
+    assert captured.value.code == ErrorCode.VIDEO_TOO_MANY_FRAMES
+    assert commands[0][commands[0].index("-frames:v") + 1] == "4"
+    assert len(list(frames_dir.glob("*.jpg"))) == 4

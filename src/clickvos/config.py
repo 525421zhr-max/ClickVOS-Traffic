@@ -23,6 +23,7 @@ class CategoryConfig:
 @dataclass(frozen=True)
 class VideoConfig:
     max_upload_bytes: int
+    max_frames: int
     frame_format: str
     jpeg_quality: int
 
@@ -70,6 +71,8 @@ def load_config(path: Path) -> AppConfig:
         raise _invalid(f"不支持 schema_version={config.schema_version}")
     if config.video.max_upload_bytes <= 0:
         raise _invalid("max_upload_bytes 必须大于 0")
+    if config.video.max_frames <= 0:
+        raise _invalid("max_frames 必须大于 0")
     if config.video.frame_format != "jpg":
         raise _invalid("当前只支持 jpg 抽帧格式")
     if not 2 <= config.video.jpeg_quality <= 31:

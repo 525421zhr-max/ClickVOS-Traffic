@@ -18,6 +18,7 @@ from clickvos.errors import ClickVOSError, ErrorCode
 
 SUPPORTED_VIDEO_SUFFIXES = frozenset({".mp4", ".mov", ".avi", ".mkv", ".webm"})
 DEFAULT_MAX_VIDEO_BYTES = 200 * 1024 * 1024
+DEFAULT_MAX_FRAMES = 300
 TASK_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 
 
@@ -164,16 +165,23 @@ def extract_frames(
     frames_dir: Path,
     quality: int = 2,
     max_bytes: int = DEFAULT_MAX_VIDEO_BYTES,
+    max_frames: int = DEFAULT_MAX_FRAMES,
 ) -> list[Path]:
     source = validate_video(video, max_bytes=max_bytes)
     if not 2 <= quality <= 31:
         raise ValueError("JPEG quality must be between 2 and 31")
+    if max_frames < 1:
+        raise ValueError("max_frames must be positive")
     frames_dir.mkdir(parents=True, exist_ok=True)
     if any(frames_dir.iterdir()):
         raise VideoIOError(ErrorCode.TASK_CONFLICT, "任务目录已有抽帧结果，请更换任务编号。", str(frames_dir))
     try:
         subprocess.run(
-            ["ffmpeg", "-v", "error", "-i", str(source), "-q:v", str(quality), str(frames_dir / "%05d.jpg")],
+            [
+                "ffmpeg", "-v", "error", "-i", str(source),
+                "-q:v", str(quality), "-frames:v", str(max_frames + 1),
+                str(frames_dir / "%05d.jpg"),
+            ],
             check=True,
         )
     except FileNotFoundError as exc:
@@ -181,6 +189,12 @@ def extract_frames(
     except subprocess.CalledProcessError as exc:
         raise VideoIOError(ErrorCode.FRAME_EXTRACTION_FAILED, "视频抽帧失败，请确认文件可正常播放。", str(source)) from exc
     frames = sorted(frames_dir.glob("*.jpg"))
+    if len(frames) > max_frames:
+        raise VideoIOError(
+            ErrorCode.VIDEO_TOO_MANY_FRAMES,
+            f"视频超过 {max_frames} 帧限制，请裁剪后重新上传。",
+            f"extracted={len(frames)}, limit={max_frames}",
+        )
     if not frames:
         raise VideoIOError(ErrorCode.FRAME_EXTRACTION_FAILED, "视频中没有可读取的画面。")
     return frames
@@ -191,9 +205,18 @@ def prepare_task(
     tasks_root: Path,
     task_id: str | None = None,
     max_bytes: int = DEFAULT_MAX_VIDEO_BYTES,
+    max_frames: int = DEFAULT_MAX_FRAMES,
     quality: int = 2,
 ) -> tuple[TaskLayout, VideoMetadata, list[Path]]:
     metadata = probe_video(video, max_bytes=max_bytes)
+    if max_frames < 1:
+        raise ValueError("max_frames must be positive")
+    if metadata.frame_count is not None and metadata.frame_count > max_frames:
+        raise VideoIOError(
+            ErrorCode.VIDEO_TOO_MANY_FRAMES,
+            f"视频超过 {max_frames} 帧限制，请裁剪后重新上传。",
+            f"reported={metadata.frame_count}, limit={max_frames}",
+        )
     layout = create_task_layout(tasks_root, task_id)
     record = {
         "schema_version": 1,
@@ -204,7 +227,9 @@ def prepare_task(
     }
     _write_task_metadata(layout.metadata, record)
     try:
-        frames = extract_frames(video, layout.frames, quality=quality, max_bytes=max_bytes)
+        frames = extract_frames(
+            video, layout.frames, quality=quality, max_bytes=max_bytes, max_frames=max_frames
+        )
     except Exception as exc:
         record["status"] = "frame_extraction_failed"
         record["extracted_frame_count"] = len(list(layout.frames.glob("*.jpg")))
@@ -252,6 +277,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 args.tasks_root or config.tasks_root,
                 args.task_id,
                 max_bytes=config.video.max_upload_bytes,
+                max_frames=config.video.max_frames,
                 quality=config.video.jpeg_quality,
             )
             result = {

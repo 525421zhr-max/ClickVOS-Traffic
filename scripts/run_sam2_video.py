@@ -49,7 +49,13 @@ def main() -> None:
     overlays_dir.mkdir(parents=True, exist_ok=True)
 
     extract_started = time.perf_counter()
-    frames = extract_frames(args.video, frames_dir)
+    frames = extract_frames(
+        args.video,
+        frames_dir,
+        quality=app_config.video.jpeg_quality,
+        max_bytes=app_config.video.max_upload_bytes,
+        max_frames=app_config.video.max_frames,
+    )
     extraction_seconds = time.perf_counter() - extract_started
 
     engine, model_load_seconds = Sam2Engine.load(app_config, args.checkpoint)
