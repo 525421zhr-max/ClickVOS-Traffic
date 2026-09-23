@@ -111,7 +111,23 @@
 
 本序列的同一目标在本轮 SAM2 传播中没有连续空掩码，因此不能用于估计保护规则的误拦截率。
 
+## kitti-mots-annotations-001（只做候选筛选）
+
+| 字段 | 记录 |
+| --- | --- |
+| 数据集 | KITTI MOTS 官方 train+val TXT 实例标注 |
+| 官方项目页 | `https://www.vision.rwth-aachen.de/page/mots` |
+| 标注包 | `https://www.vision.rwth-aachen.de/media/resource_files/instances_txt.zip` |
+| 获取方式 | 2026-09-23 下载 4,080,394 字节的官方 ZIP，仅本地保存于 `data/raw/kitti-mots/` |
+| SHA-256 | `d11c35401be1885d79111f363f861339c733355a776fcd2d9fd095274212049c` |
+| 标注许可 | 项目页注明 CC BY-NC-SA 3.0；非商业研究使用，注明来源，不随代码分发 |
+| 图像状态 | 尚未下载；图像由原 KITTI 网站托管，后续使用前单独核对许可 |
+| 本项目用途 | 只筛选同一对象 ID 的内部无标注区间；不据此认定物理遮挡或 SAM2 误拦截 |
+
+官方页说明对象 ID 在时间上保持一致，类别 1 为车辆、2 为行人。没有图像复核和模型输出时，TXT 的缺席区间仅是后续人工核查候选。
+
 ## 已拒绝候选
+
 
 ### traffic-candidate-rejected-firstperson-bike
 

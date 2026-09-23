@@ -1,0 +1,608 @@
+{
+  "source": "https://www.vision.rwth-aachen.de/media/resource_files/instances_txt.zip",
+  "archive_bytes": 4080394,
+  "archive_sha256": "d11c35401be1885d79111f363f861339c733355a776fcd2d9fd095274212049c",
+  "minimum_gap": 3,
+  "sequences": 21,
+  "annotated_frames": 7927,
+  "tracks": 749,
+  "candidate_count": 59,
+  "candidate_count_by_class": {
+    "car": 46,
+    "pedestrian": 13,
+    "other": 0
+  },
+  "candidates": [
+    {
+      "sequence": "0002",
+      "object_id": 1014,
+      "class_id": 1,
+      "last_visible_frame": 140,
+      "first_visible_again_frame": 145,
+      "first_missing_frame": 141,
+      "last_missing_frame": 144,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0002",
+      "object_id": 1016,
+      "class_id": 1,
+      "last_visible_frame": 108,
+      "first_visible_again_frame": 112,
+      "first_missing_frame": 109,
+      "last_missing_frame": 111,
+      "missing_frames": 3
+    },
+    {
+      "sequence": "0002",
+      "object_id": 1016,
+      "class_id": 1,
+      "last_visible_frame": 112,
+      "first_visible_again_frame": 116,
+      "first_missing_frame": 113,
+      "last_missing_frame": 115,
+      "missing_frames": 3
+    },
+    {
+      "sequence": "0002",
+      "object_id": 1016,
+      "class_id": 1,
+      "last_visible_frame": 132,
+      "first_visible_again_frame": 136,
+      "first_missing_frame": 133,
+      "last_missing_frame": 135,
+      "missing_frames": 3
+    },
+    {
+      "sequence": "0002",
+      "object_id": 1016,
+      "class_id": 1,
+      "last_visible_frame": 149,
+      "first_visible_again_frame": 154,
+      "first_missing_frame": 150,
+      "last_missing_frame": 153,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0002",
+      "object_id": 1016,
+      "class_id": 1,
+      "last_visible_frame": 168,
+      "first_visible_again_frame": 191,
+      "first_missing_frame": 169,
+      "last_missing_frame": 190,
+      "missing_frames": 22
+    },
+    {
+      "sequence": "0002",
+      "object_id": 1017,
+      "class_id": 1,
+      "last_visible_frame": 115,
+      "first_visible_again_frame": 119,
+      "first_missing_frame": 116,
+      "last_missing_frame": 118,
+      "missing_frames": 3
+    },
+    {
+      "sequence": "0002",
+      "object_id": 1017,
+      "class_id": 1,
+      "last_visible_frame": 134,
+      "first_visible_again_frame": 139,
+      "first_missing_frame": 135,
+      "last_missing_frame": 138,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0002",
+      "object_id": 1017,
+      "class_id": 1,
+      "last_visible_frame": 151,
+      "first_visible_again_frame": 156,
+      "first_missing_frame": 152,
+      "last_missing_frame": 155,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0002",
+      "object_id": 1017,
+      "class_id": 1,
+      "last_visible_frame": 171,
+      "first_visible_again_frame": 193,
+      "first_missing_frame": 172,
+      "last_missing_frame": 192,
+      "missing_frames": 21
+    },
+    {
+      "sequence": "0002",
+      "object_id": 1018,
+      "class_id": 1,
+      "last_visible_frame": 166,
+      "first_visible_again_frame": 189,
+      "first_missing_frame": 167,
+      "last_missing_frame": 188,
+      "missing_frames": 22
+    },
+    {
+      "sequence": "0002",
+      "object_id": 1019,
+      "class_id": 1,
+      "last_visible_frame": 169,
+      "first_visible_again_frame": 192,
+      "first_missing_frame": 170,
+      "last_missing_frame": 191,
+      "missing_frames": 22
+    },
+    {
+      "sequence": "0004",
+      "object_id": 1040,
+      "class_id": 1,
+      "last_visible_frame": 2,
+      "first_visible_again_frame": 23,
+      "first_missing_frame": 3,
+      "last_missing_frame": 22,
+      "missing_frames": 20
+    },
+    {
+      "sequence": "0005",
+      "object_id": 1025,
+      "class_id": 1,
+      "last_visible_frame": 251,
+      "first_visible_again_frame": 257,
+      "first_missing_frame": 252,
+      "last_missing_frame": 256,
+      "missing_frames": 5
+    },
+    {
+      "sequence": "0005",
+      "object_id": 1032,
+      "class_id": 1,
+      "last_visible_frame": 165,
+      "first_visible_again_frame": 170,
+      "first_missing_frame": 166,
+      "last_missing_frame": 169,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0006",
+      "object_id": 1012,
+      "class_id": 1,
+      "last_visible_frame": 91,
+      "first_visible_again_frame": 97,
+      "first_missing_frame": 92,
+      "last_missing_frame": 96,
+      "missing_frames": 5
+    },
+    {
+      "sequence": "0006",
+      "object_id": 1012,
+      "class_id": 1,
+      "last_visible_frame": 137,
+      "first_visible_again_frame": 141,
+      "first_missing_frame": 138,
+      "last_missing_frame": 140,
+      "missing_frames": 3
+    },
+    {
+      "sequence": "0008",
+      "object_id": 1013,
+      "class_id": 1,
+      "last_visible_frame": 357,
+      "first_visible_again_frame": 362,
+      "first_missing_frame": 358,
+      "last_missing_frame": 361,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0009",
+      "object_id": 1008,
+      "class_id": 1,
+      "last_visible_frame": 60,
+      "first_visible_again_frame": 64,
+      "first_missing_frame": 61,
+      "last_missing_frame": 63,
+      "missing_frames": 3
+    },
+    {
+      "sequence": "0009",
+      "object_id": 1015,
+      "class_id": 1,
+      "last_visible_frame": 57,
+      "first_visible_again_frame": 62,
+      "first_missing_frame": 58,
+      "last_missing_frame": 61,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0009",
+      "object_id": 1029,
+      "class_id": 1,
+      "last_visible_frame": 117,
+      "first_visible_again_frame": 133,
+      "first_missing_frame": 118,
+      "last_missing_frame": 132,
+      "missing_frames": 15
+    },
+    {
+      "sequence": "0011",
+      "object_id": 1031,
+      "class_id": 1,
+      "last_visible_frame": 176,
+      "first_visible_again_frame": 182,
+      "first_missing_frame": 177,
+      "last_missing_frame": 181,
+      "missing_frames": 5
+    },
+    {
+      "sequence": "0011",
+      "object_id": 1033,
+      "class_id": 1,
+      "last_visible_frame": 173,
+      "first_visible_again_frame": 179,
+      "first_missing_frame": 174,
+      "last_missing_frame": 178,
+      "missing_frames": 5
+    },
+    {
+      "sequence": "0011",
+      "object_id": 1035,
+      "class_id": 1,
+      "last_visible_frame": 169,
+      "first_visible_again_frame": 176,
+      "first_missing_frame": 170,
+      "last_missing_frame": 175,
+      "missing_frames": 6
+    },
+    {
+      "sequence": "0011",
+      "object_id": 1039,
+      "class_id": 1,
+      "last_visible_frame": 162,
+      "first_visible_again_frame": 169,
+      "first_missing_frame": 163,
+      "last_missing_frame": 168,
+      "missing_frames": 6
+    },
+    {
+      "sequence": "0011",
+      "object_id": 1055,
+      "class_id": 1,
+      "last_visible_frame": 162,
+      "first_visible_again_frame": 180,
+      "first_missing_frame": 163,
+      "last_missing_frame": 179,
+      "missing_frames": 17
+    },
+    {
+      "sequence": "0011",
+      "object_id": 1059,
+      "class_id": 1,
+      "last_visible_frame": 301,
+      "first_visible_again_frame": 305,
+      "first_missing_frame": 302,
+      "last_missing_frame": 304,
+      "missing_frames": 3
+    },
+    {
+      "sequence": "0011",
+      "object_id": 2048,
+      "class_id": 2,
+      "last_visible_frame": 7,
+      "first_visible_again_frame": 19,
+      "first_missing_frame": 8,
+      "last_missing_frame": 18,
+      "missing_frames": 11
+    },
+    {
+      "sequence": "0011",
+      "object_id": 2049,
+      "class_id": 2,
+      "last_visible_frame": 6,
+      "first_visible_again_frame": 22,
+      "first_missing_frame": 7,
+      "last_missing_frame": 21,
+      "missing_frames": 15
+    },
+    {
+      "sequence": "0012",
+      "object_id": 1003,
+      "class_id": 1,
+      "last_visible_frame": 12,
+      "first_visible_again_frame": 17,
+      "first_missing_frame": 13,
+      "last_missing_frame": 16,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0013",
+      "object_id": 1067,
+      "class_id": 1,
+      "last_visible_frame": 109,
+      "first_visible_again_frame": 128,
+      "first_missing_frame": 110,
+      "last_missing_frame": 127,
+      "missing_frames": 18
+    },
+    {
+      "sequence": "0015",
+      "object_id": 1001,
+      "class_id": 1,
+      "last_visible_frame": 11,
+      "first_visible_again_frame": 17,
+      "first_missing_frame": 12,
+      "last_missing_frame": 16,
+      "missing_frames": 5
+    },
+    {
+      "sequence": "0016",
+      "object_id": 2019,
+      "class_id": 2,
+      "last_visible_frame": 44,
+      "first_visible_again_frame": 48,
+      "first_missing_frame": 45,
+      "last_missing_frame": 47,
+      "missing_frames": 3
+    },
+    {
+      "sequence": "0017",
+      "object_id": 2007,
+      "class_id": 2,
+      "last_visible_frame": 31,
+      "first_visible_again_frame": 39,
+      "first_missing_frame": 32,
+      "last_missing_frame": 38,
+      "missing_frames": 7
+    },
+    {
+      "sequence": "0019",
+      "object_id": 2034,
+      "class_id": 2,
+      "last_visible_frame": 269,
+      "first_visible_again_frame": 274,
+      "first_missing_frame": 270,
+      "last_missing_frame": 273,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0019",
+      "object_id": 2043,
+      "class_id": 2,
+      "last_visible_frame": 228,
+      "first_visible_again_frame": 232,
+      "first_missing_frame": 229,
+      "last_missing_frame": 231,
+      "missing_frames": 3
+    },
+    {
+      "sequence": "0019",
+      "object_id": 2047,
+      "class_id": 2,
+      "last_visible_frame": 679,
+      "first_visible_again_frame": 683,
+      "first_missing_frame": 680,
+      "last_missing_frame": 682,
+      "missing_frames": 3
+    },
+    {
+      "sequence": "0019",
+      "object_id": 2047,
+      "class_id": 2,
+      "last_visible_frame": 758,
+      "first_visible_again_frame": 766,
+      "first_missing_frame": 759,
+      "last_missing_frame": 765,
+      "missing_frames": 7
+    },
+    {
+      "sequence": "0019",
+      "object_id": 2054,
+      "class_id": 2,
+      "last_visible_frame": 522,
+      "first_visible_again_frame": 528,
+      "first_missing_frame": 523,
+      "last_missing_frame": 527,
+      "missing_frames": 5
+    },
+    {
+      "sequence": "0019",
+      "object_id": 2061,
+      "class_id": 2,
+      "last_visible_frame": 676,
+      "first_visible_again_frame": 683,
+      "first_missing_frame": 677,
+      "last_missing_frame": 682,
+      "missing_frames": 6
+    },
+    {
+      "sequence": "0019",
+      "object_id": 2084,
+      "class_id": 2,
+      "last_visible_frame": 930,
+      "first_visible_again_frame": 935,
+      "first_missing_frame": 931,
+      "last_missing_frame": 934,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0019",
+      "object_id": 2085,
+      "class_id": 2,
+      "last_visible_frame": 914,
+      "first_visible_again_frame": 920,
+      "first_missing_frame": 915,
+      "last_missing_frame": 919,
+      "missing_frames": 5
+    },
+    {
+      "sequence": "0019",
+      "object_id": 2086,
+      "class_id": 2,
+      "last_visible_frame": 902,
+      "first_visible_again_frame": 907,
+      "first_missing_frame": 903,
+      "last_missing_frame": 906,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1008,
+      "class_id": 1,
+      "last_visible_frame": 74,
+      "first_visible_again_frame": 85,
+      "first_missing_frame": 75,
+      "last_missing_frame": 84,
+      "missing_frames": 10
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1010,
+      "class_id": 1,
+      "last_visible_frame": 52,
+      "first_visible_again_frame": 75,
+      "first_missing_frame": 53,
+      "last_missing_frame": 74,
+      "missing_frames": 22
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1010,
+      "class_id": 1,
+      "last_visible_frame": 88,
+      "first_visible_again_frame": 97,
+      "first_missing_frame": 89,
+      "last_missing_frame": 96,
+      "missing_frames": 8
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1022,
+      "class_id": 1,
+      "last_visible_frame": 218,
+      "first_visible_again_frame": 222,
+      "first_missing_frame": 219,
+      "last_missing_frame": 221,
+      "missing_frames": 3
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1045,
+      "class_id": 1,
+      "last_visible_frame": 362,
+      "first_visible_again_frame": 369,
+      "first_missing_frame": 363,
+      "last_missing_frame": 368,
+      "missing_frames": 6
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1048,
+      "class_id": 1,
+      "last_visible_frame": 364,
+      "first_visible_again_frame": 373,
+      "first_missing_frame": 365,
+      "last_missing_frame": 372,
+      "missing_frames": 8
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1080,
+      "class_id": 1,
+      "last_visible_frame": 505,
+      "first_visible_again_frame": 513,
+      "first_missing_frame": 506,
+      "last_missing_frame": 512,
+      "missing_frames": 7
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1084,
+      "class_id": 1,
+      "last_visible_frame": 527,
+      "first_visible_again_frame": 542,
+      "first_missing_frame": 528,
+      "last_missing_frame": 541,
+      "missing_frames": 14
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1087,
+      "class_id": 1,
+      "last_visible_frame": 543,
+      "first_visible_again_frame": 550,
+      "first_missing_frame": 544,
+      "last_missing_frame": 549,
+      "missing_frames": 6
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1101,
+      "class_id": 1,
+      "last_visible_frame": 393,
+      "first_visible_again_frame": 401,
+      "first_missing_frame": 394,
+      "last_missing_frame": 400,
+      "missing_frames": 7
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1113,
+      "class_id": 1,
+      "last_visible_frame": 511,
+      "first_visible_again_frame": 516,
+      "first_missing_frame": 512,
+      "last_missing_frame": 515,
+      "missing_frames": 4
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1114,
+      "class_id": 1,
+      "last_visible_frame": 545,
+      "first_visible_again_frame": 551,
+      "first_missing_frame": 546,
+      "last_missing_frame": 550,
+      "missing_frames": 5
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1122,
+      "class_id": 1,
+      "last_visible_frame": 644,
+      "first_visible_again_frame": 651,
+      "first_missing_frame": 645,
+      "last_missing_frame": 650,
+      "missing_frames": 6
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1123,
+      "class_id": 1,
+      "last_visible_frame": 612,
+      "first_visible_again_frame": 627,
+      "first_missing_frame": 613,
+      "last_missing_frame": 626,
+      "missing_frames": 14
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1123,
+      "class_id": 1,
+      "last_visible_frame": 648,
+      "first_visible_again_frame": 654,
+      "first_missing_frame": 649,
+      "last_missing_frame": 653,
+      "missing_frames": 5
+    },
+    {
+      "sequence": "0020",
+      "object_id": 1125,
+      "class_id": 1,
+      "last_visible_frame": 370,
+      "first_visible_again_frame": 376,
+      "first_missing_frame": 371,
+      "last_missing_frame": 375,
+      "missing_frames": 5
+    }
+  ],
+  "interpretation": "annotation gaps only; RGB review needed before calling any case occlusion or reappearance"
+}
