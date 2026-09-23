@@ -195,16 +195,36 @@ def prepare_task(
 ) -> tuple[TaskLayout, VideoMetadata, list[Path]]:
     metadata = probe_video(video, max_bytes=max_bytes)
     layout = create_task_layout(tasks_root, task_id)
-    frames = extract_frames(video, layout.frames, quality=quality, max_bytes=max_bytes)
     record = {
         "schema_version": 1,
         "task_id": layout.root.name,
-        "status": "frames_extracted",
+        "status": "preparing",
         "video": asdict(metadata),
-        "extracted_frame_count": len(frames),
+        "extracted_frame_count": 0,
     }
-    layout.metadata.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_task_metadata(layout.metadata, record)
+    try:
+        frames = extract_frames(video, layout.frames, quality=quality, max_bytes=max_bytes)
+    except Exception as exc:
+        record["status"] = "frame_extraction_failed"
+        record["extracted_frame_count"] = len(list(layout.frames.glob("*.jpg")))
+        record["error"] = (
+            {"code": exc.code.value, "message": exc.user_message}
+            if isinstance(exc, ClickVOSError)
+            else {"code": "unexpected_error", "message": "抽帧时发生未预期错误。"}
+        )
+        _write_task_metadata(layout.metadata, record)
+        raise
+    record["status"] = "frames_extracted"
+    record["extracted_frame_count"] = len(frames)
+    _write_task_metadata(layout.metadata, record)
     return layout, metadata, frames
+
+
+def _write_task_metadata(path: Path, record: dict[str, Any]) -> None:
+    pending = path.with_suffix(".json.tmp")
+    pending.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+    pending.replace(path)
 
 
 def _build_parser() -> argparse.ArgumentParser:

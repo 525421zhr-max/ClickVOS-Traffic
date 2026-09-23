@@ -1113,7 +1113,13 @@ def _open_history_task(
                 for item in task.result.get("objects", [])
             ]
         preview = str(task.preview) if task.preview is not None else None
-        if task.result is None:
+        if task.summary.status == "frame_extraction_failed":
+            error = task.metadata.get("error") or {}
+            reason = error.get("message", "原因未记录") if isinstance(error, dict) else "原因未记录"
+            message = f"任务 {task_id} 抽帧失败：{reason} 可预览占用后移入可恢复回收区。"
+        elif task.summary.status == "preparing":
+            message = f"任务 {task_id} 抽帧未完成，可能曾被中断。可预览占用后移入可恢复回收区。"
+        elif task.result is None:
             message = f"任务 {task_id} 只有抽帧结果，尚未生成分割结果。"
         elif task.preview is None:
             message = f"已读取任务 {task_id}，但预览视频缺失；仍可重新生成标注包。"

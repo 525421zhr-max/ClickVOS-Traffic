@@ -424,6 +424,28 @@ def test_history_callbacks_list_open_and_export_completed_task(tmp_path: Path) -
     assert "标注包已生成" in export_status
 
 
+def test_history_open_explains_failed_extraction(tmp_path: Path) -> None:
+    task = tmp_path / "failed-task"
+    task.mkdir()
+    (task / "task.json").write_text(
+        json.dumps({
+            "task_id": "failed-task",
+            "status": "frame_extraction_failed",
+            "video": {"path": "/data/traffic.mp4"},
+            "extracted_frame_count": 1,
+            "error": {"code": "frame_extraction_failed", "message": "视频抽帧失败。"},
+        }),
+        encoding="utf-8",
+    )
+    config = SimpleNamespace(tasks_root=tmp_path)
+    with patch("clickvos.web_app.load_config", return_value=config):
+        preview, details, status = _open_history_task("test-config.json", "failed-task")
+    assert preview is None
+    assert details["status"] == "frame_extraction_failed"
+    assert "视频抽帧失败" in status
+    assert "可恢复回收区" in status
+
+
 def test_history_cleanup_callbacks_preview_and_archive_task(tmp_path: Path) -> None:
     task = tmp_path / "task-001"
     task.mkdir()

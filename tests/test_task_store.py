@@ -90,6 +90,32 @@ def test_load_task_returns_read_only_paths_and_summary(tmp_path: Path) -> None:
     assert "2 个目标" in task.summary.choice_label
 
 
+def test_failed_extraction_is_listed_and_can_be_archived(tmp_path: Path) -> None:
+    tasks_root = tmp_path / "tasks"
+    root = tasks_root / "failed-task"
+    (root / "frames").mkdir(parents=True)
+    (root / "frames" / "00000.jpg").write_bytes(b"partial")
+    (root / "task.json").write_text(
+        json.dumps({
+            "schema_version": 1,
+            "task_id": "failed-task",
+            "status": "frame_extraction_failed",
+            "video": {"path": "/data/traffic.mp4"},
+            "extracted_frame_count": 1,
+            "error": {"code": "frame_extraction_failed", "message": "视频抽帧失败。"},
+        }),
+        encoding="utf-8",
+    )
+    summaries, skipped = list_tasks(tasks_root)
+    assert skipped == 0
+    assert summaries[0].status == "frame_extraction_failed"
+    assert "抽帧失败" in summaries[0].choice_label
+    preview = preview_task_cleanup(tasks_root, "failed-task")
+    archived = archive_task(tasks_root, "failed-task", "failed-task", preview)
+    assert not root.exists()
+    assert (archived.archived_root / "frames" / "00000.jpg").read_bytes() == b"partial"
+
+
 def test_resolve_task_root_rejects_traversal_and_missing_task(tmp_path: Path) -> None:
     with pytest.raises(TaskStoreError) as traversal:
         resolve_task_root(tmp_path, "../outside")

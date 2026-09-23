@@ -8,7 +8,14 @@ from unittest.mock import patch
 import pytest
 
 from clickvos.errors import ErrorCode
-from clickvos.video_io import VideoIOError, create_task_layout, probe_video, validate_video
+from clickvos.video_io import (
+    VideoIOError,
+    VideoMetadata,
+    create_task_layout,
+    prepare_task,
+    probe_video,
+    validate_video,
+)
 
 
 def test_validate_video_rejects_unknown_extension(tmp_path: Path) -> None:
@@ -69,3 +76,52 @@ def test_probe_video_parses_ffprobe_json(tmp_path: Path) -> None:
     assert (metadata.width, metadata.height, metadata.fps) == (960, 540, 10.0)
     assert metadata.frame_count == 50
     assert metadata.duration_seconds == 5.0
+
+
+def test_prepare_task_keeps_failure_record_and_partial_frames(tmp_path: Path) -> None:
+    video = tmp_path / "traffic.mp4"
+    video.write_bytes(b"video")
+    metadata = VideoMetadata(str(video), 4, 4, 10.0, 2, 0.2, "h264", 5)
+
+    def fail_after_first_frame(source, frames_dir, **kwargs):
+        (frames_dir / "00000.jpg").write_bytes(b"partial")
+        raise VideoIOError(ErrorCode.FRAME_EXTRACTION_FAILED, "视频抽帧失败。")
+
+    with patch("clickvos.video_io.probe_video", return_value=metadata), patch(
+        "clickvos.video_io.extract_frames", side_effect=fail_after_first_frame
+    ):
+        with pytest.raises(VideoIOError) as captured:
+            prepare_task(video, tmp_path / "tasks", "failed-task")
+
+    assert captured.value.code == ErrorCode.FRAME_EXTRACTION_FAILED
+    root = tmp_path / "tasks" / "failed-task"
+    record = json.loads((root / "task.json").read_text(encoding="utf-8"))
+    assert record["status"] == "frame_extraction_failed"
+    assert record["extracted_frame_count"] == 1
+    assert record["error"] == {
+        "code": "frame_extraction_failed",
+        "message": "视频抽帧失败。",
+    }
+    assert (root / "frames" / "00000.jpg").read_bytes() == b"partial"
+    assert not (root / "task.json.tmp").exists()
+
+
+def test_prepare_task_marks_success_after_frame_extraction(tmp_path: Path) -> None:
+    video = tmp_path / "traffic.mp4"
+    video.write_bytes(b"video")
+    metadata = VideoMetadata(str(video), 4, 4, 10.0, 2, 0.2, "h264", 5)
+
+    def write_frames(source, frames_dir, **kwargs):
+        frames = [frames_dir / f"{index:05d}.jpg" for index in range(2)]
+        for frame in frames:
+            frame.write_bytes(b"frame")
+        return frames
+
+    with patch("clickvos.video_io.probe_video", return_value=metadata), patch(
+        "clickvos.video_io.extract_frames", side_effect=write_frames
+    ):
+        layout, _, frames = prepare_task(video, tmp_path / "tasks", "ok-task")
+    record = json.loads(layout.metadata.read_text(encoding="utf-8"))
+    assert record["status"] == "frames_extracted"
+    assert record["extracted_frame_count"] == len(frames) == 2
+    assert "error" not in record

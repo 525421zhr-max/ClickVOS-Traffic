@@ -37,6 +37,10 @@ class TaskSummary:
     def choice_label(self) -> str:
         timestamp = datetime.fromisoformat(self.updated_at).strftime("%m-%d %H:%M")
         details = [f"{self.frame_count} 帧"]
+        if self.status == "frame_extraction_failed":
+            details.append("抽帧失败")
+        elif self.status == "preparing":
+            details.append("抽帧未完成")
         if self.object_count is not None:
             details.append(f"{self.object_count} 个目标")
         if self.anomaly_count is not None:
