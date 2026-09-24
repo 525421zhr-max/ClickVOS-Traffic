@@ -1,0 +1,23 @@
+{
+  "sequence": "crossing",
+  "objects": [
+    {
+      "object_id": 1,
+      "category": "pedestrian",
+      "positive": [[370, 300], [365, 270], [375, 355]],
+      "negative": [[285, 285]]
+    },
+    {
+      "object_id": 2,
+      "category": "pedestrian",
+      "positive": [[285, 285], [300, 315], [315, 355]],
+      "negative": [[370, 300]]
+    },
+    {
+      "object_id": 3,
+      "category": "vehicle",
+      "positive": [[50, 300], [150, 300], [190, 330]],
+      "negative": [[285, 285]]
+    }
+  ]
+}

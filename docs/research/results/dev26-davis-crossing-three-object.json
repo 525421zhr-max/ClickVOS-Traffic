@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "record_type": "accepted_experiment_summary",
+  "source_checkpoint": "docs/checkpoints/DEV-26-davis-crossing-three-object.md",
+  "checkpoint": "DEV-26",
+  "date": "2026-09-24",
+  "status": "single_sequence_three_object_gt_complete",
+  "input": {
+    "source_id": "davis-003-crossing",
+    "sequence": "crossing",
+    "frame_count": 52,
+    "evaluated_frame_count_per_object": 50,
+    "object_ids": [1, 2, 3],
+    "postprocessing": "none",
+    "prompt_config": "configs/experiments/davis-crossing-three-objects.json"
+  },
+  "measurements": {
+    "object_1_pedestrian": {
+      "first_frame_iou": 0.8762041401926625,
+      "mean_j": 0.915424698993796,
+      "mean_f": 0.986825014289451,
+      "mean_j_and_f": 0.951124856641623,
+      "saved_mask_count": 52
+    },
+    "object_2_pedestrian": {
+      "first_frame_iou": 0.9221546170365068,
+      "mean_j": 0.937163017154187,
+      "mean_f": 0.994402738817207,
+      "mean_j_and_f": 0.965782877985697,
+      "saved_mask_count": 52
+    },
+    "object_3_vehicle": {
+      "first_frame_iou": 0.9803025977733372,
+      "mean_j": 0.961528953198694,
+      "mean_f": 0.986210598214186,
+      "mean_j_and_f": 0.97386977570644,
+      "saved_mask_count": 52
+    },
+    "joint_inference_seconds": 19.87699114,
+    "joint_fps_including_state_init_and_output": 2.6160901131236303,
+    "peak_cuda_memory_bytes": 651203584
+  },
+  "ground_truth_available": true,
+  "ground_truth_scope": "DAVIS 2017 crossing instances 1, 2, 3; official J/F excludes first and last frames.",
+  "quality_metrics_reported": ["first-frame IoU", "DAVIS J", "DAVIS F", "DAVIS J&F"],
+  "conclusion": "One complete road crossing sequence produced 52 masks each for two pedestrians and one truck in one SAM2 session, with all three first-frame IoU gates passed.",
+  "limitations": [
+    "Only one road sequence; not a DAVIS benchmark score or category-wide average.",
+    "No road non-motorized object in this sequence.",
+    "No repeated timing run or causal comparison against separate-object inference.",
+    "Optional sam2._C hole-filling extension remained unavailable.",
+    "Original video source terms need separate review before public media display."
+  ]
+}

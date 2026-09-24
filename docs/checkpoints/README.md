@@ -55,5 +55,6 @@
 - [DEV-23：任务编号冲突保护](DEV-23-task-id-collision-protection.md)（2026-09-23）
 - [DEV-24：抽帧失败任务保留与回收闭环](DEV-24-failed-extraction-recovery.md)（2026-09-23）
 - [DEV-25：视频帧数上限与真实 FFmpeg 检查](DEV-25-video-frame-limit.md)（2026-09-23）
+- [DEV-26：DAVIS crossing 三目标联合传播](DEV-26-davis-crossing-three-object.md)（2026-09-24）
 
 新记录从 [模板](WEEKLY-TEMPLATE.md) 复制。实验数字必须能回到命令输出或原始文件。
