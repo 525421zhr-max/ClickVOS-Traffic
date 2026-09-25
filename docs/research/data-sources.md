@@ -127,7 +127,21 @@
 
 官方页说明对象 ID 在时间上保持一致，类别 1 为车辆、2 为行人。没有图像复核和模型输出时，TXT 的缺席区间仅是后续人工核查候选。2026-09-23 核对图像使用条件后，因尚无项目成员以本人账号完成 KITTI 注册，本项目不获取图像，也不把标注缺席解释为真实遮挡。
 
-## 已拒绝候选
+## davis-005-bmx-trees（自行车道诊断）
+
+| 字段 | 记录 |
+| --- | --- |
+| 数据集与来源 | DAVIS 2017 验证集 `bmx-trees`；[官方下载页](https://davischallenge.org/davis2017/code.html)与上述 train/val 480p 包 |
+| 获取方式 | 2026-09-25，`scripts/fetch_davis_sequence.py` 提取完整 80 张 RGB 和 80 张 GT，854×480，共 10,090,841 字节 |
+| 文件集合摘要 SHA-256 | `97778e38e18a5e50ee488b5c411ef9afab616d5b4f4898cff6a4f9855a7c0286`，算法见 DEV-28 |
+| 标注与场景 | ID 1 自行车、ID 2 骑行者；独立骑行小径、树木遮挡；不是城市混合交通 |
+| 数据使用范围 | 沿用 DAVIS 包 README 的 CC BY-NC 4.0 范围，仅限本项目非商业研究；原视频条款仍须在公开展示前另核 |
+| 本项目用途 | 细车架/轮圈和遮挡下的双目标诊断，不替代 DEV-27 的城市道路筛选 |
+| 实际结果 | 两对象各 80 张掩码；自行车首帧未达 0.7 门槛，骑行者通过；完整记录见 DEV-28 |
+
+原始 RGB、GT、预测和预览仅在本地保存，不随仓库发布。两个对象的 GT 均在 80 帧中非空，没有满足连续空掩码条件的重新激活事件。
+
+## 已拒绝或暂不可用的城市道路候选
 
 ### davis-004-candidate-screen（2026-09-25）
 
@@ -150,6 +164,7 @@
 | 官方类别与标注格式 | <https://github.com/bdd100k/bdd100k/blob/master/doc/source/format.rst>；bicycle 属于分割跟踪的八类对象，文档描述逐帧实例掩码与 ID |
 | 官方数据许可 | <https://github.com/bdd100k/bdd100k/blob/master/doc/source/license.rst>；教育、研究及非营利许可用途与代码仓库的 BSD 许可不同 |
 | 官方数据站 | <https://bdd-data.berkeley.edu/>；2026-09-25 在 Windows 和 WSL 均遇到 TLS 证书主机名不匹配，网页抓取为 502 |
+| 官方列出的替代入口 | [下载文档](https://github.com/bdd100k/bdd100k/blob/master/doc/source/download.rst)列出 ETH 镜像 <https://dl.cv.ethz.ch/bdd100k/data/>；2026-09-25 本机 Windows/WSL 访问均遇 TLS 握手失败，WSL 为 curl 35 `SSL_ERROR_SYSCALL` |
 | 使用状态 | 未下载任何 BDD100K 数据，未确认某条视频确有可用自行车实例；不会绕过证书校验或访问政策 |
 
 若后续能通过可信官方入口获取数据，还需先核对视频、标注相互对应及具体使用条件，再决定是否作为道路非机动车小样本。

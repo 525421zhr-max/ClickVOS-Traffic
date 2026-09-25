@@ -40,6 +40,7 @@ def main() -> None:
     parser.add_argument("--prompt-config", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--app-config", type=Path, default=Path("configs/default.json"))
+    parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
     frames = sorted(args.frames_dir.glob("*.jpg"))
@@ -56,6 +57,7 @@ def main() -> None:
     for prompt in prompts:
         prompt.validate(width, height, {category.key for category in config.categories})
     expected_ids = {prompt.object_id for prompt in prompts}
+    torch.manual_seed(args.seed)
     engine, model_load_seconds = Sam2Engine.load(config, args.checkpoint)
     if config.model.device == "cuda":
         torch.cuda.reset_peak_memory_stats()
@@ -100,7 +102,12 @@ def main() -> None:
         "sequence": sequence,
         "frame_count": len(frames),
         "model": config.model.name,
+        "model_config": config.model.config,
+        "checkpoint_sha256": config.model.checkpoint_sha256,
+        "seed": args.seed,
+        "frame_size_wh": [width, height],
         "torch": torch.__version__,
+        "cuda_runtime": torch.version.cuda,
         "gpu": torch.cuda.get_device_name(0) if config.model.device == "cuda" else None,
         "postprocessing": "none",
         "model_load_seconds": model_load_seconds,

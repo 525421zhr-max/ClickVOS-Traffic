@@ -1,0 +1,22 @@
+{
+  "sequence": "bmx-trees",
+  "scene_scope": "cycling_path_occlusion_diagnostic",
+  "prompt_selection": "Manually selected on RGB and checked against first-frame ground truth before inference.",
+  "objects": [
+    {
+      "object_id": 1,
+      "category": "non_motorized",
+      "source_category": "bicycle",
+      "positive": [[402, 328], [500, 275], [549, 327]],
+      "negative": [[461, 182]]
+    },
+    {
+      "object_id": 2,
+      "category": "non_motorized",
+      "source_category": "person",
+      "role": "rider",
+      "positive": [[461, 182], [459, 253], [452, 304]],
+      "negative": [[402, 328]]
+    }
+  ]
+}
