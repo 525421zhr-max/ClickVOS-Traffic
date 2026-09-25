@@ -129,6 +129,31 @@
 
 ## 已拒绝候选
 
+### davis-004-candidate-screen（2026-09-25）
+
+| 字段 | 记录 |
+| --- | --- |
+| 官方来源 | <https://davischallenge.org/davis2017/code.html>，DAVIS 2017 train/val 480p 压缩包 |
+| 语义依据 | 官方 Object categories 包中的 `davis_semantics.json`，本地已核对 bicycle、person、motorcycle ID |
+| 获取方式 | 通过 `scripts/fetch_davis_sequence.py` 按 HTTP Range 只取各候选首、中、末三张 RGB 和同名实例真值 |
+| 成功样本 | `bmx-trees`：0/40/79；`longboard`：0/26/51；`scooter-black`：0/21/42；共 18 个文件、1,295,157 字节，只在本地保存 |
+| 未取得样本 | `bike-trial` 不在本次官方 train/val 480p 包的 JPEGImages 列表内 |
+| 许可 | 包内 README 写明 CC BY-NC 4.0，原视频条款另需复核；不上传原始媒体和真值 |
+| 筛选结论 | 前两条画面不属于道路交通；后一条属于城市道路，但踏板车是机动车；均不能填补道路非机动车真值缺口 |
+
+画面、标签抽样核查与完整命令见 `docs/checkpoints/DEV-27-nonmotor-gt-source-screen.md`。这是素材筛选，不是新的 J/F 实验。
+
+### bdd100k-candidate（仅来源核查，2026-09-25）
+
+| 字段 | 记录 |
+| --- | --- |
+| 官方类别与标注格式 | <https://github.com/bdd100k/bdd100k/blob/master/doc/source/format.rst>；bicycle 属于分割跟踪的八类对象，文档描述逐帧实例掩码与 ID |
+| 官方数据许可 | <https://github.com/bdd100k/bdd100k/blob/master/doc/source/license.rst>；教育、研究及非营利许可用途与代码仓库的 BSD 许可不同 |
+| 官方数据站 | <https://bdd-data.berkeley.edu/>；2026-09-25 在 Windows 和 WSL 均遇到 TLS 证书主机名不匹配，网页抓取为 502 |
+| 使用状态 | 未下载任何 BDD100K 数据，未确认某条视频确有可用自行车实例；不会绕过证书校验或访问政策 |
+
+若后续能通过可信官方入口获取数据，还需先核对视频、标注相互对应及具体使用条件，再决定是否作为道路非机动车小样本。
+
 
 ### traffic-candidate-rejected-firstperson-bike
 
