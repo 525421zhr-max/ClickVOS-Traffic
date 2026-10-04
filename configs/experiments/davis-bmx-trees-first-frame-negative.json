@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "sequence": "bmx-trees",
+  "baseline_prompt_config": "configs/experiments/davis-bmx-trees-two-objects.json",
+  "target_object_id": 1,
+  "negative_points": [[533, 292], [415, 317], [475, 282]],
+  "first_frame_iou_gate": 0.7,
+  "baseline_iou_tolerance": 0.01,
+  "seed": 0,
+  "maximum_added_negative_points": 3,
+  "maximum_single_frame_sessions": 4,
+  "maximum_propagation_runs": 0,
+  "prompt_selection": "Ground-truth-assisted diagnostic using the frozen DEV-28 false-positive mask, not blind user clicks. No DEV-29 prediction was inspected when choosing these points.",
+  "point_selection_method": "Within each manually chosen RGB region, select the row-major argmax of scipy.ndimage.distance_transform_edt((gt == 0) & dev28_bicycle_mask), before new inference.",
+  "point_regions": [
+    {"name": "front_wheel", "roi_xyxy_exclusive": [503, 287, 544, 343], "point_xy": [533, 292]},
+    {"name": "rear_wheel_frame_gap", "roi_xyxy_exclusive": [390, 300, 427, 337], "point_xy": [415, 317]},
+    {"name": "frame_gap", "roi_xyxy_exclusive": [465, 279, 489, 314], "point_xy": [475, 282]}
+  ]
+}
