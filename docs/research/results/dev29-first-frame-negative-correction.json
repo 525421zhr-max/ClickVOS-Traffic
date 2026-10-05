@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "record_type": "bounded_first_frame_diagnostic_summary",
+  "source_checkpoint": "docs/checkpoints/DEV-29-first-frame-negative-correction.md",
+  "checkpoint": "DEV-29",
+  "date": "2026-10-04",
+  "pre_run_contract_commit": "69710f57263acd45ebf822781ac5c94253a034a8",
+  "status": "budget_exhausted",
+  "input": {
+    "source_id": "davis-005-bmx-trees",
+    "sequence": "bmx-trees",
+    "frame": "00000",
+    "frame_count": 1,
+    "frame_size_wh": [
+      854,
+      480
+    ],
+    "object_ids": [
+      1,
+      2
+    ],
+    "prompt_config": "configs/experiments/davis-bmx-trees-first-frame-negative.json",
+    "prompt_selection": "ground_truth_and_dev28_false_positive_assisted_not_blind_user_clicks",
+    "first_frame_iou_gate": 0.7,
+    "baseline_iou_tolerance": 0.01,
+    "seed": 0,
+    "postprocessing": "none",
+    "frame_sha256": "64d01a321146130b47a751da835ff244b8065148e3a75763d4cc6e2287f2f47f",
+    "ground_truth_sha256": "d850edabaad81cca1054bdd6f7da336e5c8e290b1af94c5f09095796aa231bf8",
+    "experiment_config_sha256": "3437d14870544a8553b539268daf0ab33c18cbe250fc5ee76d58235e1597300b",
+    "baseline_prompt_config_sha256": "962da6fde75707f765c669faf6b46f8dec189e5f5999e49de6efcc5af179308c"
+  },
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "torch": "2.11.0+cu128",
+    "cuda_runtime": "12.8",
+    "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "sam2_version": "1.0",
+    "sam2_source_commit": "2b90b9f5ceec907a1c18123530e92e794ad901a4",
+    "repository_commit": "69710f57263acd45ebf822781ac5c94253a034a8",
+    "strict_cuda_determinism_requested": false
+  },
+  "model": {
+    "name": "sam2.1_hiera_tiny",
+    "config": "configs/sam2.1/sam2.1_hiera_t.yaml",
+    "checkpoint_sha256": "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69",
+    "device": "cuda",
+    "offload_video_to_cpu": true,
+    "offload_state_to_cpu": true
+  },
+  "measurements": {
+    "completed_stage_count": 4,
+    "added_negative_click_count": 3,
+    "initial_total_click_count": 8,
+    "final_total_click_count": 11,
+    "temporal_propagation_count": 0,
+    "saved_mask_count": 8,
+    "baseline_pixel_difference_per_object": [
+      0,
+      0
+    ],
+    "stages": [
+      {
+        "stage_index": 0,
+        "added_negative_click_count": 0,
+        "added_negative_points": [],
+        "all_objects_pass_first_frame_gate": false,
+        "objects": [
+          {
+            "object_id": 1,
+            "initial_click_count": 4,
+            "added_negative_click_count": 0,
+            "final_click_count": 4,
+            "iou": 0.6426849843335743,
+            "ground_truth_pixels": 6466,
+            "prediction_pixels": 7165,
+            "true_positive_pixels": 5333,
+            "false_positive_pixels": 1832,
+            "false_negative_pixels": 1133,
+            "pixel_difference_from_dev28": 0
+          },
+          {
+            "object_id": 2,
+            "initial_click_count": 4,
+            "added_negative_click_count": 0,
+            "final_click_count": 4,
+            "iou": 0.878540675277589,
+            "ground_truth_pixels": 7971,
+            "prediction_pixels": 8609,
+            "true_positive_pixels": 7754,
+            "false_positive_pixels": 855,
+            "false_negative_pixels": 217,
+            "pixel_difference_from_dev28": 0
+          }
+        ],
+        "elapsed_seconds_including_session_init_and_save": 1.7488603190000163
+      },
+      {
+        "stage_index": 1,
+        "added_negative_click_count": 1,
+        "added_negative_points": [
+          [
+            533,
+            292
+          ]
+        ],
+        "all_objects_pass_first_frame_gate": false,
+        "objects": [
+          {
+            "object_id": 1,
+            "initial_click_count": 4,
+            "added_negative_click_count": 1,
+            "final_click_count": 5,
+            "iou": 0.6607895745496358,
+            "ground_truth_pixels": 6466,
+            "prediction_pixels": 6533,
+            "true_positive_pixels": 5172,
+            "false_positive_pixels": 1361,
+            "false_negative_pixels": 1294,
+            "pixel_difference_from_dev28": 636
+          },
+          {
+            "object_id": 2,
+            "initial_click_count": 4,
+            "added_negative_click_count": 0,
+            "final_click_count": 4,
+            "iou": 0.878540675277589,
+            "ground_truth_pixels": 7971,
+            "prediction_pixels": 8609,
+            "true_positive_pixels": 7754,
+            "false_positive_pixels": 855,
+            "false_negative_pixels": 217,
+            "pixel_difference_from_dev28": 0
+          }
+        ],
+        "elapsed_seconds_including_session_init_and_save": 0.29875352099998054
+      },
+      {
+        "stage_index": 2,
+        "added_negative_click_count": 2,
+        "added_negative_points": [
+          [
+            533,
+            292
+          ],
+          [
+            415,
+            317
+          ]
+        ],
+        "all_objects_pass_first_frame_gate": false,
+        "objects": [
+          {
+            "object_id": 1,
+            "initial_click_count": 4,
+            "added_negative_click_count": 2,
+            "final_click_count": 6,
+            "iou": 0.6562668827660724,
+            "ground_truth_pixels": 6466,
+            "prediction_pixels": 5797,
+            "true_positive_pixels": 4859,
+            "false_positive_pixels": 938,
+            "false_negative_pixels": 1607,
+            "pixel_difference_from_dev28": 1386
+          },
+          {
+            "object_id": 2,
+            "initial_click_count": 4,
+            "added_negative_click_count": 0,
+            "final_click_count": 4,
+            "iou": 0.878540675277589,
+            "ground_truth_pixels": 7971,
+            "prediction_pixels": 8609,
+            "true_positive_pixels": 7754,
+            "false_positive_pixels": 855,
+            "false_negative_pixels": 217,
+            "pixel_difference_from_dev28": 0
+          }
+        ],
+        "elapsed_seconds_including_session_init_and_save": 0.2555251910000038
+      },
+      {
+        "stage_index": 3,
+        "added_negative_click_count": 3,
+        "added_negative_points": [
+          [
+            533,
+            292
+          ],
+          [
+            415,
+            317
+          ],
+          [
+            475,
+            282
+          ]
+        ],
+        "all_objects_pass_first_frame_gate": false,
+        "objects": [
+          {
+            "object_id": 1,
+            "initial_click_count": 4,
+            "added_negative_click_count": 3,
+            "final_click_count": 7,
+            "iou": 0.6451351351351351,
+            "ground_truth_pixels": 6466,
+            "prediction_pixels": 5708,
+            "true_positive_pixels": 4774,
+            "false_positive_pixels": 934,
+            "false_negative_pixels": 1692,
+            "pixel_difference_from_dev28": 1459
+          },
+          {
+            "object_id": 2,
+            "initial_click_count": 4,
+            "added_negative_click_count": 0,
+            "final_click_count": 4,
+            "iou": 0.878540675277589,
+            "ground_truth_pixels": 7971,
+            "prediction_pixels": 8609,
+            "true_positive_pixels": 7754,
+            "false_positive_pixels": 855,
+            "false_negative_pixels": 217,
+            "pixel_difference_from_dev28": 0
+          }
+        ],
+        "elapsed_seconds_including_session_init_and_save": 0.3814248859999907
+      }
+    ],
+    "model_load_seconds": 1.3594660239999996,
+    "peak_cuda_memory_bytes": 626877952
+  },
+  "ground_truth_available": true,
+  "ground_truth_scope": "Single first frame of DAVIS bmx-trees, objects 1 and 2; no temporal evaluation.",
+  "quality_metrics_reported": [
+    "first-frame IoU"
+  ],
+  "local_artifact_root": "outputs/tasks/davis-bmx-trees-first-frame-negative-001",
+  "test_receipt": {
+    "command": "/home/clickvos/.venvs/clickvos/bin/python -m pytest -q",
+    "passed": 107,
+    "seconds": 6.25,
+    "added_tests": 16
+  },
+  "conclusion": "The frozen three-negative-click budget did not reach the 0.7 bicycle gate. False positives decreased while thin-structure false negatives increased. Rider masks remained unchanged; no propagation was run.",
+  "limitations": [
+    "GT and prior failed masks assisted point selection; not a blind user study.",
+    "One cycling-path first frame; not an urban mixed-traffic or complete DAVIS evaluation.",
+    "Stage 1 is the highest observed IoU but still below the frozen gate; final status is budget_exhausted.",
+    "No new temporal J/F, reactivation event evaluation, or video FPS comparison.",
+    "Optional sam2._C hole-filling extension remained unavailable.",
+    "The runtime repository commit identifies the pre-run contract; the implementation is archived with this checkpoint.",
+    "Raw RGB, GT, masks, and overlays remain local; DEV-28 originals are preserved."
+  ]
+}
