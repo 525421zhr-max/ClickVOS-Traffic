@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "source_checkpoint": "DEV-33",
+  "date": "2026-10-06",
+  "status": "materials_prepared_no_participants",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "scope": "usability_material_preparation_only",
+  "real_participants": 0,
+  "pending_task_records": 30,
+  "gpu_runs": 0,
+  "media_full_decode_passed": true,
+  "overwrite_refused": true,
+  "existing_files_unchanged_on_retry": true,
+  "receipt": {
+    "schema_version": 1,
+    "protocol_version": "clickvos-user-trial-v1",
+    "status": "materials_prepared_no_participants",
+    "real_participants": 0,
+    "blank_record_count": 10,
+    "gpu_runs": 0,
+    "assets": [
+      {
+        "file": "T1-car.mp4",
+        "sha256": "c13b6695c57c51acb3810ac2e0d32e82245241bb0eedbbb55c4c065f4f1e8f4b",
+        "bytes": 1282187,
+        "width_height": [
+          854,
+          480
+        ],
+        "frame_count": 75,
+        "playback_fps": 10,
+        "source_id": "davis-002-car-roundabout",
+        "license_attribution": "CC BY-NC 4.0; source terms also apply",
+        "source_url": "https://davischallenge.org/davis2017/code.html",
+        "time_limit_seconds": 480
+      },
+      {
+        "file": "T2-pedestrians.mp4",
+        "sha256": "461c2fed7d2913100c19d68fe2ec6a958c44498194ed863533eaeada12b7169f",
+        "bytes": 841495,
+        "width_height": [
+          960,
+          540
+        ],
+        "frame_count": 50,
+        "playback_fps": 10,
+        "source_id": "traffic-002",
+        "license_attribution": "CC BY-SA 3.0 / Amada44",
+        "source_url": "https://commons.wikimedia.org/wiki/File:People_waiting_to_cross_the_street.webm",
+        "time_limit_seconds": 600
+      },
+      {
+        "file": "T3-riders.mp4",
+        "sha256": "57916fe7b6968ac71e1da7cc5bb24b6409975b942b638d41b14edcc35d6be5b6",
+        "bytes": 1002543,
+        "width_height": [
+          960,
+          540
+        ],
+        "frame_count": 30,
+        "playback_fps": 10,
+        "source_id": "traffic-004",
+        "license_attribution": "CC BY 3.0 / idioterna",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Bloody_Cyclists.webm",
+        "time_limit_seconds": 720
+      }
+    ]
+  },
+  "participant_config_count": 10,
+  "unique_participant_task_roots": 10
+}

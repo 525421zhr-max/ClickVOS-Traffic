@@ -62,5 +62,6 @@
 - [DEV-30：Web 首帧预览与补点记录](DEV-30-first-frame-preview.md)（2026-10-05）
 - [DEV-31：新增授权道路骑行素材与双目标功能测试](DEV-31-licensed-road-cyclists.md)（2026-10-06）
 - [DEV-32：浏览器完整流程回归](DEV-32-browser-workflow-regression.md)（2026-10-06）
+- [DEV-33：十人试用材料准备](DEV-33-user-trial-preparation.md)（2026-10-06）
 
 新记录从 [模板](WEEKLY-TEMPLATE.md) 复制。实验数字必须能回到命令输出或原始文件。

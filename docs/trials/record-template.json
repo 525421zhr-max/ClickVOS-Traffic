@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "protocol_version": "clickvos-user-trial-v1",
+  "participant_id": null,
+  "participated": false,
+  "application_commit": "b971298d375866191359425005e4dd4db57fea49",
+  "started_at": null,
+  "prior_annotation_experience": null,
+  "tasks": [
+    {"task_id": "T1", "outcome": "pending", "acceptance_passed": null, "elapsed_seconds": null, "input_clicks": null, "correction_actions": null, "help_count": null, "help_notes": [], "software_task_ids": [], "downloaded_bundle": null, "ease_score_1_to_5": null, "failure_or_missing_reason": null},
+    {"task_id": "T2", "outcome": "pending", "acceptance_passed": null, "elapsed_seconds": null, "input_clicks": null, "correction_actions": null, "help_count": null, "help_notes": [], "software_task_ids": [], "downloaded_bundle": null, "ease_score_1_to_5": null, "failure_or_missing_reason": null},
+    {"task_id": "T3", "outcome": "pending", "acceptance_passed": null, "elapsed_seconds": null, "input_clicks": null, "correction_actions": null, "help_count": null, "help_notes": [], "software_task_ids": [], "downloaded_bundle": null, "ease_score_1_to_5": null, "failure_or_missing_reason": null}
+  ],
+  "overall_satisfaction_1_to_5": null,
+  "most_confusing_step": null,
+  "requested_improvement": null,
+  "observer_notes": null
+}
