@@ -1,0 +1,10 @@
+{
+  "sequence": "traffic-004-cyclists",
+  "source_id": "traffic-004",
+  "clip": {"start_seconds": 12, "duration_seconds": 3, "fps": 10, "width": 960, "height": 540},
+  "scope": "two_riders_body_masks_functional_smoke_no_ground_truth",
+  "objects": [
+    {"object_id": 1, "category": "non_motorized", "description": "near rider body, bicycle excluded from intended target", "positive": [[394, 149], [380, 199]], "negative": [[350, 146], [434, 216]]},
+    {"object_id": 2, "category": "non_motorized", "description": "far rider body, bicycle excluded from intended target", "positive": [[351, 143], [342, 176]], "negative": [[394, 149], [318, 210]]}
+  ]
+}

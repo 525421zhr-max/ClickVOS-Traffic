@@ -141,6 +141,14 @@
 
 原始 RGB、GT、预测和预览仅在本地保存，不随仓库发布。两个对象的 GT 均在 80 帧中非空，没有满足连续空掩码条件的重新激活事件。
 
+## traffic-004（城市道路骑行功能测试）
+
+- 来源：[Bloody Cyclists.webm](https://commons.wikimedia.org/wiki/File:Bloody_Cyclists.webm)，作者 idioterna，CC BY 3.0；页面记录外部来源许可于 2016-02-22 经审核。2026-10-06 核对并下载，42,786,147 字节，29.934 秒，1920×1080。
+- 原文件 SHA-1：`8de43546dce31404407c03dde30dca58d67efe80`，与来源页一致；SHA-256：`8ee81fdaadec916f7b109c1e954d0b22c7cc420f0f8f6e65a53346d2b18af75a`。
+- 固定 12–15 秒，10 FPS、960×540、去音频/抽帧，用于两个外部骑行者的人体分割功能测试。各保存 30 张掩码，未出现空掩码；无 GT，不报告分割精度。
+- 使用时署名并链接 [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)，说明裁剪、缩放、抽帧和分割叠加修改。本轮媒体、掩码、叠加图仅保存在本地，未公开展示。
+- 详见 [DEV-31](../checkpoints/DEV-31-licensed-road-cyclists.md)。
+
 ## 已拒绝或暂不可用的城市道路候选
 
 ### davis-004-candidate-screen（2026-09-25）

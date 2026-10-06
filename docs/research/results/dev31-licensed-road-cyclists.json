@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "source_checkpoint": "DEV-31",
+  "date": "2026-10-06",
+  "status": "engineering_passed_quality_unscored",
+  "scope": "two_rider_body_masks_30_frame_functional_smoke",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "source_page": "https://commons.wikimedia.org/wiki/File:Bloody_Cyclists.webm",
+  "author": "idioterna",
+  "license": "CC BY 3.0",
+  "source_bytes": 42786147,
+  "source_sha256": "8ee81fdaadec916f7b109c1e954d0b22c7cc420f0f8f6e65a53346d2b18af75a",
+  "propagation_runs": 1,
+  "prompt_config": "configs/experiments/traffic-004-cyclists.json",
+  "raw_result": {
+    "sequence": "traffic-004-cyclists",
+    "frame_count": 30,
+    "model": "sam2.1_hiera_tiny",
+    "model_config": "configs/sam2.1/sam2.1_hiera_t.yaml",
+    "checkpoint_sha256": "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69",
+    "seed": 0,
+    "frame_size_wh": [
+      960,
+      540
+    ],
+    "torch": "2.11.0+cu128",
+    "cuda_runtime": "12.8",
+    "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "postprocessing": "none",
+    "model_load_seconds": 1.3613323970000053,
+    "inference_seconds": 11.805781590999999,
+    "fps_including_state_init": 2.541127816803773,
+    "peak_cuda_memory_bytes": 650166784,
+    "objects": [
+      {
+        "object_id": 1,
+        "category": "non_motorized",
+        "positive": [
+          [
+            394,
+            149
+          ],
+          [
+            380,
+            199
+          ]
+        ],
+        "negative": [
+          [
+            350,
+            146
+          ],
+          [
+            434,
+            216
+          ]
+        ],
+        "saved_mask_count": 30,
+        "mask_foreground_pixels": {
+          "00000.png": 3599,
+          "00001.png": 3901,
+          "00002.png": 4680,
+          "00003.png": 5420,
+          "00004.png": 6161,
+          "00005.png": 7323,
+          "00006.png": 7939,
+          "00007.png": 8562,
+          "00008.png": 9404,
+          "00009.png": 9890,
+          "00010.png": 10716,
+          "00011.png": 11117,
+          "00012.png": 11105,
+          "00013.png": 11101,
+          "00014.png": 11323,
+          "00015.png": 11515,
+          "00016.png": 11737,
+          "00017.png": 12396,
+          "00018.png": 13029,
+          "00019.png": 13636,
+          "00020.png": 14333,
+          "00021.png": 14145,
+          "00022.png": 14992,
+          "00023.png": 15037,
+          "00024.png": 15209,
+          "00025.png": 16421,
+          "00026.png": 17485,
+          "00027.png": 17388,
+          "00028.png": 18084,
+          "00029.png": 18906
+        }
+      },
+      {
+        "object_id": 2,
+        "category": "non_motorized",
+        "positive": [
+          [
+            351,
+            143
+          ],
+          [
+            342,
+            176
+          ]
+        ],
+        "negative": [
+          [
+            394,
+            149
+          ],
+          [
+            318,
+            210
+          ]
+        ],
+        "saved_mask_count": 30,
+        "mask_foreground_pixels": {
+          "00000.png": 1867,
+          "00001.png": 1991,
+          "00002.png": 2201,
+          "00003.png": 2311,
+          "00004.png": 2495,
+          "00005.png": 2234,
+          "00006.png": 2495,
+          "00007.png": 2454,
+          "00008.png": 2330,
+          "00009.png": 2335,
+          "00010.png": 2094,
+          "00011.png": 1943,
+          "00012.png": 1855,
+          "00013.png": 2374,
+          "00014.png": 3469,
+          "00015.png": 3738,
+          "00016.png": 3768,
+          "00017.png": 3622,
+          "00018.png": 4213,
+          "00019.png": 3746,
+          "00020.png": 4470,
+          "00021.png": 4494,
+          "00022.png": 4637,
+          "00023.png": 4823,
+          "00024.png": 4914,
+          "00025.png": 5359,
+          "00026.png": 5443,
+          "00027.png": 5637,
+          "00028.png": 5787,
+          "00029.png": 5947
+        }
+      }
+    ]
+  },
+  "file_verification": {
+    "status": "passed",
+    "frame_count": 30,
+    "frame_size_wh": [
+      960,
+      540
+    ],
+    "input_collection_sha256": "7ed1b8a59e29f0f1a39f3c19235ef6d80cf819a3f9e26c25401b77cdccd1abef",
+    "ground_truth_available": false,
+    "quality_metrics_reported": [],
+    "objects": [
+      {
+        "object_id": 1,
+        "saved_mask_count": 30,
+        "empty_frames": [],
+        "area_min": 3599,
+        "area_max": 18906
+      },
+      {
+        "object_id": 2,
+        "saved_mask_count": 30,
+        "empty_frames": [],
+        "area_min": 1855,
+        "area_max": 5947
+      }
+    ]
+  },
+  "visual_review_frames": [
+    0,
+    15,
+    29
+  ],
+  "visual_review": "No obvious identity switch in six sampled overlays; boundary quality not quantified.",
+  "reactivation_evidence": "insufficient_no_empty_masks",
+  "limits": [
+    "No bicycle-body quality evaluation",
+    "No ground truth",
+    "No browser end-to-end test",
+    "No user trial",
+    "No dataset-wide benchmark"
+  ]
+}
