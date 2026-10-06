@@ -51,7 +51,8 @@ def test_uncompressed_rle_round_trip() -> None:
     assert np.array_equal(_decode_rle(encoded), mask)
 
 
-def test_annotation_bundle_contains_masks_and_json_but_not_source_frames(tmp_path: Path) -> None:
+@pytest.mark.parametrize("with_review_log", [False, True])
+def test_annotation_bundle_contains_masks_and_json_but_not_source_frames(tmp_path: Path, with_review_log: bool) -> None:
     task = tmp_path / "task-001"
     (task / "masks" / "object_001").mkdir(parents=True)
     (task / "masks" / "object_002").mkdir(parents=True)
@@ -123,6 +124,13 @@ def test_annotation_bundle_contains_masks_and_json_but_not_source_frames(tmp_pat
         encoding="utf-8",
     )
 
+    if with_review_log:
+        (task / "first_frame_review.json").write_text(
+            json.dumps({"schema_version": 1, "events": [{"action": "preview"}]}), encoding="utf-8",
+        )
+        draft = task / "first_frame_previews" / "draft" / "masks"
+        draft.mkdir(parents=True)
+        (draft / "00000.png").write_bytes(b"draft-mask-must-not-be-exported")
     bundle = build_annotation_bundle(task)
     with zipfile.ZipFile(bundle) as archive:
         names = set(archive.namelist())
@@ -132,6 +140,8 @@ def test_annotation_bundle_contains_masks_and_json_but_not_source_frames(tmp_pat
         assert "masks/object_001/00000.png" in names
         assert not any(name.startswith("frames/") for name in names)
         assert not any(name.startswith("source/") for name in names)
+        assert not any(name.startswith("first_frame_previews/") for name in names)
+        assert ("first_frame_review.json" in names) is with_review_log
         project = json.loads(archive.read("project.json"))
         coco = json.loads(archive.read("annotations/coco_rle.json"))
     assert project["video"]["file_name"] == "traffic.mp4"

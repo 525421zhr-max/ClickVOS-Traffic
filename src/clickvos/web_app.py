@@ -25,6 +25,12 @@ from clickvos.anomaly import ReactivationGuard, detect_fragmentation, detect_rea
 from clickvos.config import AppConfig, load_config
 from clickvos.errors import ClickVOSError
 from clickvos.export import build_annotation_bundle, build_preview_video
+from clickvos.first_frame_review import (
+    append_review_event,
+    preview_first_frame,
+    read_review_history,
+    render_composite_overlay,
+)
 from clickvos.mask_processing import keep_largest_component, mask_boundary
 from clickvos.sam2_engine import (
     ObjectPrompt,
@@ -339,15 +345,8 @@ def _write_composite_overlay(
             mask_path = runtime["task_root"] / "masks" / f"object_{object_id:03d}" / f"{stem}.png"
             if mask_path.is_file():
                 effective_masks[object_id] = np.asarray(Image.open(mask_path).convert("L")) > 0
-    frame = np.asarray(Image.open(runtime["frames"][frame_index]).convert("RGB"), dtype=np.float32)
-    for object_id in sorted(effective_masks):
-        mask = effective_masks[object_id]
-        color = np.asarray(OBJECT_COLORS[(object_id - 1) % len(OBJECT_COLORS)], dtype=np.float32)
-        frame[mask] = frame[mask] * 0.55 + color * 0.45
-        frame[mask_boundary(mask)] = color
     output = runtime["task_root"] / "overlays" / f"{stem}.jpg"
-    Image.fromarray(frame.astype(np.uint8)).save(output, quality=92)
-    return output
+    return render_composite_overlay(runtime["frames"][frame_index], effective_masks, output)
 
 
 def _detect_mask_overlaps(
@@ -716,8 +715,8 @@ def _first_frame_review(report: dict[str, Any], first_overlay: str) -> tuple[str
         guidance = (
             "### 先确认首帧对象完整\n"
             f"目标 {ids} 目前只有一个正点。车辆或非机动车可能因此只分出车门、"
-            "车窗或车轮等局部。请检查左侧首帧掩码；如果没有覆盖完整目标，回到第 2 步，"
-            "在目标的不同部位补充正点后重新运行。负点应放在不需要的邻近物体上。"
+            "车窗或车轮等局部。请检查左侧首帧掩码，在目标的不同部位补充正点，"
+            "再点击“仅更新首帧预览”。负点可能同时删掉细车架，需检查后再传播。"
         )
     else:
         guidance = (
@@ -760,6 +759,11 @@ def _add_first_frame_review_click(
     if target is None:
         raise gr.Error("补点目标不存在，请重新运行传播。")
     x, y = int(event.index[0]), int(event.index[1])
+    with Image.open(first_overlay_path) as image:
+        if not 0 <= x < image.width or not 0 <= y < image.height:
+            raise gr.Error("补点超出首帧范围，请点击图像内部。")
+    if prompt_kind not in {"正点", "负点"}:
+        raise gr.Error("请选择正点或负点。")
     point = {"x": x, "y": y, "positive": prompt_kind == "正点"}
     target["points"].append(point)
     additions = [dict(item) for item in (added_points or [])]
@@ -825,6 +829,134 @@ def _run_multi_for_web(*args: Any) -> tuple[Any, ...]:
         first_overlay,
         _review_object_update(report),
         [],
+    )
+
+
+def _require_review_runtime(
+    task_state: dict[str, Any] | None, session_key: str | None,
+    overlay_path: str | None = None,
+) -> dict[str, Any]:
+    if not task_state or not session_key:
+        raise gr.Error("请先为当前视频运行一次传播，再复核首帧。")
+    with _SESSION_LOCK:
+        runtime = _ACTIVE_SESSIONS.get(session_key)
+    if runtime is None:
+        raise gr.Error("当前推理会话已释放，请重新运行传播。")
+    root = Path(task_state["task_root"]).resolve()
+    if root != Path(runtime["task_root"]).resolve():
+        raise gr.Error("首帧结果属于另一个任务，请为当前视频重新运行传播。")
+    if overlay_path and (root not in Path(overlay_path).resolve().parents):
+        raise gr.Error("首帧图像不属于当前任务，请重新运行传播。")
+    return runtime
+
+
+def _review_edit_for_web(
+    task_state: dict[str, Any] | None, session_key: str | None,
+    first_overlay_path: str | None, prompt_kind: str,
+    selected_object_id: int | float | None, objects: list[dict[str, Any]] | None,
+    added_points: list[dict[str, Any]] | None, event: gr.SelectData,
+) -> tuple[Any, ...]:
+    runtime = _require_review_runtime(task_state, session_key, first_overlay_path)
+    outputs = _add_first_frame_review_click(
+        first_overlay_path, prompt_kind, selected_object_id, objects, added_points, event,
+    )
+    try:
+        history = append_review_event(
+            Path(runtime["task_root"]), "add", outputs[1], point=outputs[3][-1],
+        )
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+    return (*outputs, history, "提示已更改。请更新首帧预览检查效果；完整视频仍是上次传播结果。", None)
+
+
+def _review_undo_for_web(
+    task_state: dict[str, Any] | None, session_key: str | None,
+    first_overlay_path: str | None, selected_object_id: int | float | None,
+    objects: list[dict[str, Any]] | None, added_points: list[dict[str, Any]] | None,
+) -> tuple[Any, ...]:
+    runtime = _require_review_runtime(task_state, session_key, first_overlay_path)
+    outputs = _undo_first_frame_review_click(
+        first_overlay_path, selected_object_id, objects, added_points,
+    )
+    try:
+        history = append_review_event(
+            Path(runtime["task_root"]), "undo", outputs[1], point=added_points[-1],
+        )
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+    return (*outputs, history, "已撤销补点。请更新首帧预览，检查恢复后的选择。", None)
+
+
+def _preview_first_frame_for_web(
+    task_state: dict[str, Any] | None, session_key: str | None,
+    objects: list[dict[str, Any]] | None, selected_object_id: int | float | None,
+    keep_largest: bool,
+) -> tuple[Any, ...]:
+    runtime = _require_review_runtime(task_state, session_key)
+    try:
+        preview = preview_first_frame(
+            runtime["session"], objects or [], Path(runtime["task_root"]), keep_largest,
+        )
+        history = append_review_event(
+            Path(runtime["task_root"]), "preview", objects or [],
+            preview_id=preview["preview_id"], keep_largest=bool(keep_largest),
+        )
+        selected = int(selected_object_id) if selected_object_id is not None else None
+        image = _render_object_prompts(preview["overlay"], objects or [], selected)
+        message = (
+            "首帧预览已更新。请检查完整目标和轮圈空隙；不满意可撤销补点。"
+            "完整视频仍是上次传播结果，确认后点击“用补点重新传播”。"
+        )
+        return image, preview["overlay"], message, history, "已更新 1 帧预览，未重新传播视频。", None
+    except Exception as exc:
+        raise _friendly_error(exc) from exc
+
+
+def _run_with_review_history(*args: Any) -> tuple[Any, ...]:
+    if args and args[0]:
+        try:
+            read_review_history(Path(args[0]["task_root"]))
+        except Exception as exc:
+            raise _friendly_error(exc) from exc
+    outputs = _run_multi_for_web(*args)
+    objects = [
+        {"object_id": item["object_id"], "category": item["category"], "points": item["initial_points"]}
+        for item in outputs[1]["objects"]
+    ]
+    history = append_review_event(
+        Path(args[0]["task_root"]), "propagate", objects,
+        frame_count=outputs[1]["frame_count"],
+        postprocessing=outputs[1]["postprocessing"],
+    )
+    return (*outputs, history, "首帧与完整视频已使用本次提示。补点后可先更新首帧预览。", None)
+
+
+def _export_reviewed_task(
+    task_state: dict[str, Any] | None, session_key: str | None,
+    objects: list[dict[str, Any]] | None, keep_largest: bool, guard_reactivation: bool,
+) -> tuple[str, str]:
+    runtime = _require_review_runtime(task_state, session_key)
+    applied = [
+        {"object_id": object_id, "category": item["category"], "points": item["points"]}
+        for object_id, item in sorted(runtime["objects"].items())
+    ]
+    pending = sorted(objects or [], key=lambda item: int(item["object_id"]))
+    if (
+        pending != applied or bool(keep_largest) != runtime["keep_largest"]
+        or bool(guard_reactivation) != runtime["guard_reactivation"]
+    ):
+        raise gr.Error("当前提示或传播设置尚未应用到整段视频，请先重新传播，再导出标注。")
+    return _export_active_task(session_key)
+
+
+def _reset_task_review() -> tuple[Any, ...]:
+    with _SESSION_LOCK:
+        _ACTIVE_SESSIONS.clear()
+    return (
+        None, None, None, [], gr.update(choices=[], value=None),
+        "运行传播后，请先检查首帧是否覆盖完整目标，再查看后续帧。",
+        "等待当前视频的传播结果。", {}, None, None, None,
+        gr.update(choices=[], value=None), None, None, [], [], 0,
     )
 
 
@@ -1578,6 +1710,7 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             )
             first_result_path = gr.State()
             first_result_added_points = gr.State([])
+            first_result_state = gr.Markdown("等待当前视频的传播结果。")
             with gr.Row():
                 first_result_object = gr.Dropdown(
                     choices=[], label="首帧补点目标", interactive=True
@@ -1586,12 +1719,15 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                     ["正点", "负点"], value="正点", label="首帧补点类型"
                 )
             with gr.Row():
+                preview_first_result = gr.Button("仅更新首帧预览", variant="primary")
                 undo_first_result_point = gr.Button(
                     "撤销最后一个补点", elem_classes=["secondary-action"]
                 )
                 rerun_with_first_result_points = gr.Button(
-                    "用补点重新传播", variant="primary"
+                    "用补点重新传播"
                 )
+            with gr.Accordion("首帧补点记录", open=False):
+                first_result_history = gr.JSON(label="补点、撤销和预览记录")
             with gr.Accordion("查看完整运行报告", open=False):
                 report = gr.JSON(label="运行结果与异常")
 
@@ -1634,23 +1770,37 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 export_bundle = gr.Button("生成标注下载包", variant="primary")
                 download = gr.File(label="标注结果包（ZIP）", interactive=False)
 
-        prepare.click(
+        prepare_event = prepare.click(
             _prepare_multi_video,
             inputs=[video, config_value],
             outputs=[
                 frame, task_state, objects_state, current_object,
                 object_table, status, first_frame_path,
             ],
+            concurrency_id="task_operations",
+        )
+        prepare_event.success(
+            _reset_task_review,
+            outputs=[
+                session_key, first_result, first_result_path, first_result_added_points,
+                first_result_object, first_frame_guidance, first_result_state,
+                first_result_history, preview, report, download, anomaly_selector,
+                correction_frame, correction_frame_path, correction_prompt_state,
+                correction_table, correction_index,
+            ],
+            concurrency_id="task_operations",
         )
         add_object.click(
             _add_object,
             inputs=[first_frame_path, category, objects_state],
             outputs=[frame, objects_state, current_object, object_table, status],
+            concurrency_id="task_operations",
         )
         delete_object.click(
             _delete_object,
             inputs=[first_frame_path, current_object, objects_state],
             outputs=[frame, objects_state, current_object, object_table, status],
+            concurrency_id="task_operations",
         )
         current_object.input(
             _select_object,
@@ -1661,14 +1811,16 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
             _add_object_click,
             inputs=[first_frame_path, prompt_kind, current_object, objects_state],
             outputs=[frame, objects_state, object_table],
+            concurrency_id="task_operations",
         )
         clear.click(
             _clear_object_points,
             inputs=[first_frame_path, current_object, objects_state],
             outputs=[frame, objects_state, object_table],
+            concurrency_id="task_operations",
         )
         run.click(
-            _run_multi_for_web,
+            _run_with_review_history,
             inputs=[
                 task_state, objects_state, checkpoint, config_value,
                 keep_largest, guard_reactivation,
@@ -1677,32 +1829,49 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 preview, report, status, session_key, anomaly_selector,
                 first_result, first_frame_guidance, first_result_path,
                 first_result_object, first_result_added_points,
+                first_result_history, first_result_state, download,
             ],
+            concurrency_id="task_operations",
         )
         first_result.select(
-            _add_first_frame_review_click,
+            _review_edit_for_web,
             inputs=[
+                task_state, session_key,
                 first_result_path, first_result_kind, first_result_object,
                 objects_state, first_result_added_points,
             ],
             outputs=[
                 first_result, objects_state, object_table,
                 first_result_added_points, status,
+                first_result_history, first_result_state, download,
             ],
+            concurrency_id="task_operations",
         )
         undo_first_result_point.click(
-            _undo_first_frame_review_click,
+            _review_undo_for_web,
             inputs=[
+                task_state, session_key,
                 first_result_path, first_result_object,
                 objects_state, first_result_added_points,
             ],
             outputs=[
                 first_result, objects_state, object_table,
                 first_result_added_points, status,
+                first_result_history, first_result_state, download,
             ],
+            concurrency_id="task_operations",
+        )
+        preview_first_result.click(
+            _preview_first_frame_for_web,
+            inputs=[task_state, session_key, objects_state, first_result_object, keep_largest],
+            outputs=[
+                first_result, first_result_path, first_result_state,
+                first_result_history, status, download,
+            ],
+            concurrency_id="task_operations",
         )
         rerun_with_first_result_points.click(
-            _run_multi_for_web,
+            _run_with_review_history,
             inputs=[
                 task_state, objects_state, checkpoint, config_value,
                 keep_largest, guard_reactivation,
@@ -1711,12 +1880,15 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 preview, report, status, session_key, anomaly_selector,
                 first_result, first_frame_guidance, first_result_path,
                 first_result_object, first_result_added_points,
+                first_result_history, first_result_state, download,
             ],
+            concurrency_id="task_operations",
         )
         export_bundle.click(
-            _export_active_task,
-            inputs=session_key,
+            _export_reviewed_task,
+            inputs=[task_state, session_key, objects_state, keep_largest, guard_reactivation],
             outputs=[download, status],
+            concurrency_id="task_operations",
         )
         load_anomaly.click(
             _load_selected_anomaly,
@@ -1749,16 +1921,19 @@ def build_demo(config_path: Path = Path("configs/default.json")) -> gr.Blocks:
                 preview, report, status, correction_frame,
                 correction_prompt_state, correction_table, anomaly_selector,
             ],
+            concurrency_id="task_operations",
         )
         confirm_candidate.click(
             _confirm_guarded_candidate,
             inputs=[session_key, current_object, correction_index],
             outputs=[preview, report, status, correction_frame, anomaly_selector],
+            concurrency_id="task_operations",
         )
         undo_confirmation.click(
             _undo_guarded_candidate_confirmation,
             inputs=[session_key, current_object, correction_index],
             outputs=[preview, report, status, correction_frame, anomaly_selector],
+            concurrency_id="task_operations",
         )
         refresh_history.click(
             _refresh_task_history,

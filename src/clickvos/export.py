@@ -214,6 +214,9 @@ def build_project_manifest(task_root: Path, result: dict[str, Any], output: Path
         "corrections": result.get("corrections", []),
         "confirmed_reactivations": result.get("confirmed_reactivations", []),
         "review_actions": result.get("review_actions", []),
+        "first_frame_review_log": (
+            "first_frame_review.json" if (task_root / "first_frame_review.json").is_file() else None
+        ),
         "overlap_events": result.get("overlap_events", []),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -235,6 +238,9 @@ def build_annotation_bundle(task_root: Path) -> Path:
     with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.write(project, "project.json")
         archive.write(coco, "annotations/coco_rle.json")
+        review_log = task_root / "first_frame_review.json"
+        if review_log.is_file():
+            archive.write(review_log, "first_frame_review.json")
         preview = exports / "preview.mp4"
         if preview.is_file():
             archive.write(preview, "preview.mp4")

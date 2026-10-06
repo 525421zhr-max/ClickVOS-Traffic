@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "source_checkpoint": "docs/checkpoints/DEV-30-first-frame-preview.md",
+  "checkpoint": "DEV-30",
+  "date": "2026-10-05",
+  "record_type": "bounded_engineering_smoke",
+  "status": "passed",
+  "ground_truth_available": false,
+  "ground_truth_scope": "No ground truth loaded or scored for this functional smoke; DAVIS GT exists separately.",
+  "quality_metrics_reported": [],
+  "local_artifact_root": "outputs/tasks/dev30-first-frame-preview-001",
+  "measurements": {
+    "schema_version": 1,
+    "status": "passed",
+    "scope": "two_frame_web_callback_engineering_smoke",
+    "frame_count": 2,
+    "full_propagation_runs": 2,
+    "single_frame_previews": 2,
+    "added_clicks": 1,
+    "undo_actions": 1,
+    "journal_actions": [
+      "propagate",
+      "add",
+      "preview",
+      "undo",
+      "preview",
+      "propagate"
+    ],
+    "formal_outputs_unchanged_during_previews": true,
+    "active_session_and_prompts_unchanged_during_previews": true,
+    "pending_export_rejected": true,
+    "review_log_in_export": true,
+    "source_frames_and_draft_masks_excluded_from_export": true,
+    "final_saved_masks_per_object": [
+      2,
+      2
+    ],
+    "seed": 0,
+    "model": {
+      "name": "sam2.1_hiera_tiny",
+      "config": "configs/sam2.1/sam2.1_hiera_t.yaml",
+      "checkpoint_sha256": "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69",
+      "device": "cuda",
+      "offload_video_to_cpu": true,
+      "offload_state_to_cpu": true
+    },
+    "torch": "2.11.0+cu128",
+    "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "quality_metrics_reported": [],
+    "negative_preview": "first_frame_previews/3fd48c2b01fe48648d910db3ff85690d/overlay.jpg",
+    "undo_preview": "first_frame_previews/31ba943543f64381a54119e317551e18/overlay.jpg",
+    "export": "exports/clickvos-dev30-first-frame-preview-001.zip"
+  },
+  "test_receipt": {
+    "passed": 122,
+    "seconds": 4.8,
+    "added_tests": 15
+  },
+  "browser_check": {
+    "browser": "local Microsoft Edge headless",
+    "desktop_viewport": [
+      1440,
+      1100
+    ],
+    "mobile_viewport": [
+      390,
+      844
+    ],
+    "horizontal_overflow": false,
+    "scope": "layout and initial controls only; GPU flow exercised Python Web callbacks",
+    "artifact_root": "outputs/tasks/dev30-ui-inspection-001"
+  },
+  "limitations": [
+    "Single two-frame engineering smoke, not a quality benchmark or user trial.",
+    "Preview needs an existing active propagation session; no pre-propagation preview or editable history restore.",
+    "DEV-29 fixed negative points remain below the 0.7 gate.",
+    "Optional SAM2 hole-filling extension remains unavailable.",
+    "Raw frames, masks and previews remain local."
+  ]
+}
