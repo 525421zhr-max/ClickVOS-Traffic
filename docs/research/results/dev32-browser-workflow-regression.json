@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "source_checkpoint": "DEV-32",
+  "date": "2026-10-06",
+  "status": "passed",
+  "scope": "desktop_browser_core_workflow",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "base_commit": "a6c7b805876c5e369673a8c601bd7873e37aa87e",
+  "task_id": "bf3e81f09121",
+  "input_sha256": "57916fe7b6968ac71e1da7cc5bb24b6409975b942b638d41b14edcc35d6be5b6",
+  "input_bytes": 1002543,
+  "input_frame_count": 30,
+  "full_propagations": 2,
+  "single_frame_previews": 2,
+  "correction_propagations": 1,
+  "correction_propagated_frames": 15,
+  "default_postprocessing": true,
+  "actual_initial_prompts": [
+    {
+      "object_id": 1,
+      "category": "non_motorized",
+      "points": [
+        {
+          "x": 393,
+          "y": 147,
+          "positive": true
+        },
+        {
+          "x": 379,
+          "y": 197,
+          "positive": true
+        },
+        {
+          "x": 348,
+          "y": 145,
+          "positive": false
+        },
+        {
+          "x": 433,
+          "y": 215,
+          "positive": false
+        }
+      ]
+    },
+    {
+      "object_id": 2,
+      "category": "non_motorized",
+      "points": [
+        {
+          "x": 350,
+          "y": 142,
+          "positive": true
+        },
+        {
+          "x": 341,
+          "y": 176,
+          "positive": true
+        },
+        {
+          "x": 393,
+          "y": 147,
+          "positive": false
+        },
+        {
+          "x": 318,
+          "y": 210,
+          "positive": false
+        }
+      ]
+    }
+  ],
+  "first_frame_add_event": {
+    "action": "add",
+    "objects": [
+      {
+        "object_id": 1,
+        "category": "non_motorized",
+        "points": [
+          {
+            "x": 393,
+            "y": 147,
+            "positive": true
+          },
+          {
+            "x": 379,
+            "y": 197,
+            "positive": true
+          },
+          {
+            "x": 348,
+            "y": 145,
+            "positive": false
+          },
+          {
+            "x": 433,
+            "y": 215,
+            "positive": false
+          },
+          {
+            "x": 449,
+            "y": 249,
+            "positive": false
+          }
+        ]
+      },
+      {
+        "object_id": 2,
+        "category": "non_motorized",
+        "points": [
+          {
+            "x": 350,
+            "y": 142,
+            "positive": true
+          },
+          {
+            "x": 341,
+            "y": 176,
+            "positive": true
+          },
+          {
+            "x": 393,
+            "y": 147,
+            "positive": false
+          },
+          {
+            "x": 318,
+            "y": 210,
+            "positive": false
+          }
+        ]
+      }
+    ],
+    "details": {
+      "point": {
+        "object_id": 1,
+        "x": 449,
+        "y": 249,
+        "positive": false
+      }
+    },
+    "timestamp_utc": "2026-10-06T10:48:50.772174+08:00",
+    "event_id": 2
+  },
+  "pending_export_rejected": true,
+  "pending_export_download_link_count": 0,
+  "preview_isolation": {
+    "checked_files": 122,
+    "changed_files": 0
+  },
+  "downloaded_bundle": {
+    "status": "passed",
+    "download_sha256": "51e91393bef3124f5d0c078b1bc7eca82e799fca06fc80849a69567358d6ed55",
+    "download_bytes": 1147134,
+    "zip_entries": 64,
+    "masks_verified": 60,
+    "rle_annotations_verified": 60,
+    "review_actions": [
+      "propagate",
+      "add",
+      "preview",
+      "undo",
+      "preview",
+      "propagate"
+    ],
+    "corrections": [
+      {
+        "object_id": 1,
+        "frame_index": 15,
+        "points": [
+          {
+            "x": 480,
+            "y": 399,
+            "positive": false
+          }
+        ],
+        "immediate_mask_pixels": 1844,
+        "propagated_frames": 15,
+        "seconds": 4.455836819000012
+      }
+    ],
+    "source_media_and_draft_previews_excluded": true,
+    "download_matches_generated_bundle": true
+  },
+  "new_video_extracted_frames": 101,
+  "new_video_inference_runs": 0,
+  "stale_preview_rejected_after_new_video": true,
+  "final_dom_check": {
+    "historyVideo": true,
+    "historyDownload": true,
+    "newTaskObjects": "目标与提示点统计\n[\n]",
+    "oldCurrentPreviewImages": 0,
+    "oldCurrentDownloads": 0,
+    "correctionIndex": "0",
+    "viewport": 1440,
+    "documentWidth": 1425
+  },
+  "tests": {
+    "passed": 122,
+    "seconds": 5.49
+  },
+  "application_code_changed": false,
+  "limits": [
+    "No new quality score",
+    "No real reactivation candidate confirmation",
+    "No ten-user trial",
+    "No mobile full workflow",
+    "No multi-user load test",
+    "No cloud deployment"
+  ]
+}
