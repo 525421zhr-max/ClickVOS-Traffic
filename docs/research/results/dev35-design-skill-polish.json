@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "source_checkpoint": "DEV-35",
+  "date": "2026-10-07",
+  "status": "published",
+  "scope": "portfolio_design_refinement",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "application_code_changed": false,
+  "new_skills_installed": ["redesign-existing-projects", "frontend-design"],
+  "existing_skills_reused": ["design-taste-frontend", "impeccable"],
+  "site_source_commit": "f9bf2db25d9ab6878ee6fe8b53569316a46449ed",
+  "site_version_number": 2,
+  "deployment_id": "appgdep_6ac5bd014da08191b4edf67a47faa3d3",
+  "deployment_status": "succeeded",
+  "url": "https://clickvos-traffic-portfolio.elven-trail-5448.chatgpt.site",
+  "observed_audience": "public",
+  "access_modified": false,
+  "browser_checks": {
+    "screen_theme_combinations": 6,
+    "horizontal_overflow": false,
+    "font_loaded": true,
+    "reduced_motion": true,
+    "all_five_tabs_verified": true,
+    "keyboard_End_verified": true,
+    "next_step_wrap_verified": true
+  },
+  "local_lighthouse": {
+    "version": "13.5.0",
+    "url": "http://127.0.0.1:7870/",
+    "form_factor": "mobile",
+    "throttling_method": "simulate",
+    "performance": 100,
+    "accessibility": 100,
+    "best_practices": 100,
+    "seo": 100,
+    "lcp_ms": 1737.0013,
+    "cls": 0,
+    "production_site_measured": false
+  },
+  "gpu_runs": 0,
+  "limits": ["No model quality metrics", "No real-user trial", "Local lab performance only", "Main annotation UI unchanged"]
+}

@@ -63,5 +63,7 @@
 - [DEV-31：新增授权道路骑行素材与双目标功能测试](DEV-31-licensed-road-cyclists.md)（2026-10-06）
 - [DEV-32：浏览器完整流程回归](DEV-32-browser-workflow-regression.md)（2026-10-06）
 - [DEV-33：十人试用材料准备](DEV-33-user-trial-preparation.md)（2026-10-06）
+- [DEV-34：Codex Sites 作品展示页](DEV-34-sites-portfolio.md)（2026-10-07）
+- [DEV-35：设计技能安装与作品页精修](DEV-35-design-skill-polish.md)（2026-10-07）
 
 新记录从 [模板](WEEKLY-TEMPLATE.md) 复制。实验数字必须能回到命令输出或原始文件。
