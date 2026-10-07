@@ -6,7 +6,7 @@
 
 项目仍处于原型阶段。功能已经可以完整跑通，但公开数据评估、十人试用和云端部署还没有完成。Docker 配置已经加入仓库，尚未完成实机镜像构建验证。
 
-Codex Sites [作品展示页](https://clickvos-traffic-portfolio.elven-trail-5448.chatgpt.site) 已发布；DEV-35 核对到当前站点访问范围为公开，并沿用该设置发布设计精修版。该页面介绍功能、流程和已验证结果，实际标注继续使用本地应用。发布与设计记录见 [DEV-34](docs/checkpoints/DEV-34-sites-portfolio.md)、[DEV-35](docs/checkpoints/DEV-35-design-skill-polish.md)。
+Codex Sites [项目网站](https://clickvos-traffic-portfolio.elven-trail-5448.chatgpt.site) 现已整合真实标注工作台。GPU 推理在用户本机运行，通过访问码和临时 HTTPS 服务接入；电脑与服务需要保持运行。也可以直接打开同一界面的本机版本。启动方式见 [统一网站说明](docs/operations/unified-site.md)，工程回归见 [DEV-36](docs/checkpoints/DEV-36-unified-site-workbench.md)。原 Gradio 应用仍保留历史管理及重新激活候选确认等高级功能，固定十人试用材料不改动。
 
 ## 已实现
 

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "source_checkpoint": "DEV-36",
+  "date": "2026-10-07",
+  "status": "published",
+  "scope": "unified_site_and_authenticated_local_gpu_workbench",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "gpu_host": "existing_local_gpu",
+  "temporary_https_connection_verified": true,
+  "cloud_gpu_deployment_completed": false,
+  "single_operator_only": true,
+  "automated_tests_passed": 137,
+  "new_api_security_tests": 15,
+  "browser_regression": {
+    "task_id": "5077678111f8",
+    "frames": 30,
+    "objects": 2,
+    "initial_propagations": 1,
+    "single_frame_previews": 1,
+    "midframe_corrections": 1,
+    "pending_export_http_status": 409,
+    "preview_png_jpg_hashes_unchanged": 120,
+    "preview_report_and_video_hashes_checked": false,
+    "workbench_view_theme_combinations": 5,
+    "portfolio_view_theme_combinations": 6,
+    "uncaught_js_exceptions": 0,
+    "reset_state_clean": true
+  },
+  "download": {
+    "sha256": "66181b5438d9b6591f5bd6889667a0c3bd83d5099a5eeb01e68aa8edab34a5c8",
+    "bytes": 1147065,
+    "zip_entries": 64,
+    "png_masks_verified": 60,
+    "rle_annotations_verified": 60,
+    "matches_generated_bundle": true,
+    "source_media_and_draft_previews_excluded": true,
+    "review_actions": ["propagate", "add", "preview", "undo"]
+  },
+  "ui_state_checks": {
+    "loopback_connection_bootstrap": true,
+    "access_fragment_removed": true,
+    "coordinate_input": true,
+    "unapplied_correction_retained_on_target_switch": true,
+    "expired_auth_recovery": true,
+    "scope": "saved task handoff simulation without GPU or backend mutations"
+  },
+  "site": {
+    "source_commit": "a958dc513a533d8bde545973cb3dd1c28fa51fa4",
+    "version_number": 3,
+    "deployment_id": "appgdep_6ac5c355f0a48191929266659e52bd87",
+    "deployment_status": "succeeded",
+    "url": "https://clickvos-traffic-portfolio.elven-trail-5448.chatgpt.site",
+    "audience": "public",
+    "access_changed": false,
+    "access_token_published": false,
+    "published_frontend_gpu_ready_handshake_verified": true,
+    "static_archive_files": 18
+  },
+  "real_user_trials_completed": 0,
+  "original_gradio_and_trial_protocol_preserved": true,
+  "limits": ["Temporary connection requires computer and services to stay running", "No multi-user isolation", "Re-upload after service restart", "No mobile full-task acceptance", "No new segmentation quality metrics"]
+}

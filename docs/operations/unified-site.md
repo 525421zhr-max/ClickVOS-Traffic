@@ -1,0 +1,43 @@
+# 统一网站与本机 GPU
+
+网站把项目介绍和真实标注工作台放在同一入口。已验证：视频上传、目标类别/ID/正负点、SAM2 传播、首帧单独预览和撤销、中间帧修正、逐帧叠加掩码、异常定位及标注包下载。界面采用项目原有字体、浅绿纸面与深青色，支持系统深色模式和手机布局。手机完整标注任务没有验收。
+
+## 在当前 Windows 电脑启动
+
+前提是原有 `Ubuntu-24.04`、`/home/clickvos/.venvs/clickvos` 和 SAM2 权重仍可用。不要重新安装已验证模型。当前依赖 Gradio 6.27.0、FastAPI 0.141.1、Uvicorn 0.53.0，见 `requirements-app.txt`。
+
+在项目根目录 PowerShell 执行：
+
+```powershell
+# 本机 + 临时 HTTPS；已运行时复用现有服务
+./scripts/start_unified_site.ps1 -Open
+# 只使用本机，不启动新的 HTTPS 连接
+./scripts/start_unified_site.ps1 -LocalOnly -Open
+# 停止本轮网关、连接页及临时连接；不停止原 Gradio
+./scripts/start_unified_site.ps1 -Stop
+```
+
+然后在这台电脑打开 [连接入口](http://127.0.0.1:7882/)。可以选择在线网站，也可以选择本机工作台；入口自动传递本次访问码，网站随即从地址栏移除它。不要公开分享该入口中含权限的完整链接。
+
+临时 HTTPS 连接已实际接通并用于一次浏览器完整流程。它使用官方 Cloudflare Quick Tunnel；重启后地址会变，电脑休眠、网络变化或服务退出时无法推理。长期稳定的云 GPU 部署仍待完成。不需要购买云算力、注册 Cloudflare 账号或修改账户配置。参考 [官方 Quick Tunnel 说明](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)。
+
+首次缺少连接程序时，只从 [官方 2026.10.0 release](https://github.com/cloudflare/cloudflared/releases/tag/2026.10.0) 下载 Windows amd64 版到 `outputs/tasks/unified-site-v1/runtime/cloudflared.exe`。SHA-256 必须为 `86aee4017b26625cee8484c113558f48effa4cd47f7aa05fcf425604e5d2b23c`。启动脚本会核对哈希，不添加全局 PATH 或服务注册。当前电脑已经下载并核验，不需要重复下载。
+
+## 操作与结果
+
+1. 连接服务，上传许可清楚的短交通视频，最多 50 MiB、300 帧。
+2. 新建一个或多个目标，为每个目标至少添加一个正点；负点排除背景。也可以用坐标表单代替画布点击。
+3. 运行视频分割，显示掩码并逐帧复核。首帧补点后可先只预览一帧，再决定重新传播或撤销；未传播提示会阻止导出。
+4. 在中间帧选择目标并补点，从当前帧修正并向后传播；应用或撤销这些点后再切换目标/帧。
+5. 生成并下载 ZIP，包含逐对象 PNG 掩码、预览 MP4、项目 JSON、COCO RLE 和首帧操作日志。原视频和临时单帧预览不进入下载包。
+
+当前仅支持单人依次操作，同时只运行一个任务操作。没有多用户隔离或账号系统；不要用同一访问码组织并发试用，也不要同时在旧 Gradio 启动另一轮 GPU 推理。服务重启后，界面需重新上传视频；任务输出留在本地，当前工作台没有历史恢复入口。原 Gradio 的历史管理、回收区和重新激活候选确认/撤销仍保留在原应用中。
+
+## 文件与维护
+
+- `web/site/`：可随 GitHub 恢复的原生 HTML/CSS/JS、UI 字体和图标及许可；默认服务地址为空。发布到 Sites 时同步到相邻 `ClickVOS-Portfolio/dist/`，使用已有项目 ID，发布目录只包含前端。
+- `src/clickvos/site_api.py`：有访问码的网关，复用现有标注与导出回调。公开静态目录与任务目录隔离；所有 `/api` 读取和操作需要权限。仅接受指定网站来源，绑定 loopback，不开放旧历史目录。
+- `outputs/tasks/unified-site-v1/runtime/`：本地设置、随机访问码、PID、日志和连接程序；Git 忽略。设置中可调整权重/静态目录，访问码不写入公开代码或站点。
+- `outputs/tasks/unified-site-v1/tasks/`：独立任务输出；保留既有 DEV-28/29/32 证据，没有自动删除。
+
+网关固定单进程，不能增加 Uvicorn worker 数；内存任务/会话和 GPU 锁不跨进程共享。最多保留本次进程 32 个上传任务、128 条运行记录，不对旧目录开放枚举 API。所有原始媒体、模型、掩码与预览只在推理电脑和授权下载者浏览器处理，不加入公开仓库或站点静态包。联网上传会经过临时 HTTPS 中转，不代表仅在浏览器本地处理。
