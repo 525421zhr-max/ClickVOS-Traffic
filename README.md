@@ -6,6 +6,8 @@
 
 项目仍处于原型阶段。功能已经可以完整跑通，但公开数据评估、十人试用和云端部署还没有完成。Docker 配置已经加入仓库，尚未完成实机镜像构建验证。
 
+Codex Sites [作品展示页](https://clickvos-traffic-portfolio.elven-trail-5448.chatgpt.site) 已发布，目前仅所有者账户可见。该页面介绍功能、流程和已验证结果；实际标注继续使用本地应用。发布记录见 [DEV-34](docs/checkpoints/DEV-34-sites-portfolio.md)。
+
 ## 已实现
 
 - MP4 上传、抽帧和视频信息检查

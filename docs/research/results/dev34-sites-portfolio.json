@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "source_checkpoint": "DEV-34",
+  "date": "2026-10-07",
+  "status": "published",
+  "scope": "static_portfolio_site",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "application_code_changed": false,
+  "site_source_commit": "e41109567cf3c09259f92ec8f831050a9cc6e558",
+  "project_id": "appgprj_6ac5b868145081918414e8b6050ba3d1",
+  "version_id": "appgprj_6ac5b868145081918414e8b6050ba3d1~appgver_26e1123d80fc819196edc51341b02837",
+  "deployment_id": "appgdep_6ac5ba3aa7b08191a8940376864e28e1",
+  "deployment_status": "succeeded",
+  "url": "https://clickvos-traffic-portfolio.elven-trail-5448.chatgpt.site",
+  "audience": "owner_private",
+  "local_checks": {
+    "javascript_syntax": "passed",
+    "desktop_width": 1440,
+    "mobile_width": 390,
+    "horizontal_overflow": false,
+    "workflow_tabs_verified": 5,
+    "keyboard_End_verified": true,
+    "next_step_wrap_verified": true,
+    "illustration_disclosure_verified": true,
+    "trial_pending_disclosure_verified": true
+  },
+  "gpu_runs": 0,
+  "limits": [
+    "Static portfolio, no online inference service",
+    "Owner-private access",
+    "No ten-user trial results",
+    "No new quality metrics",
+    "Docker and cloud GPU remain unverified"
+  ]
+}
