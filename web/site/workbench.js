@@ -4,7 +4,7 @@
   const colors = ["#00d2ff", "#ff5c5c", "#8fff5c", "#c36eff", "#ffbe46", "#4696ff"];
   const labels = {vehicle:"车辆", pedestrian:"行人", non_motorized:"非机动车"};
   const state = {service:"", key:"", connected:false, busy:false, task:null, objects:[], selected:null,
-    frame:0, corrections:[], draft:false, image:null, imageUrl:null, frameRequest:0};
+    frame:0, corrections:[], draft:false, image:null, imageUrl:null, frameRequest:0, maxBytes:100 * 1024 * 1024};
   const canvas = $("annotation-canvas"), context = canvas.getContext("2d");
   const storageKey = "clickvos-service-v1";
   let connection = {};
@@ -91,6 +91,9 @@
     if (!state.key) throw Error("请输入访问码，或在本机打开连接入口。");
     const status = await json("/api/status");
     if (!status.ready) throw Error("服务已连接，但 GPU 或模型还未就绪，请联系服务提供者。");
+    state.maxBytes = status.max_bytes;
+    const durationLimit = status.max_duration_seconds == null ? "未设置时长限制" : `最多 ${status.max_duration_seconds} 秒`;
+    $("upload-limits").textContent = `${durationLimit}、${status.max_bytes / 1024**2} MiB、${status.max_frames} 处理帧。降低处理帧率可能漏掉快速变化，原视频不修改。`;
     state.connected = true;
     sessionStorage.setItem(storageKey, JSON.stringify({service:state.service, key:state.key}));
     $("connection-panel").hidden = true;
@@ -113,7 +116,7 @@
     state.objects = task.objects;
     if (!state.objects.some(target => target.object_id === state.selected)) state.selected = state.objects[0]?.object_id ?? null;
     $("frame-slider").max = task.frame_count - 1;
-    $("video-info").textContent = `${task.width} × ${task.height} · ${task.frame_count} 帧`;
+    $("video-info").textContent = `${task.width} × ${task.height} · ${task.frame_count} 帧 · ${task.fps.toFixed(2)} FPS${task.sampling ? "（已抽帧）" : "（全部帧）"}`;
     $("canvas-empty").hidden = true; $("canvas-stage").hidden = false;
     renderTargets();
     $("result-summary").textContent = task.has_result
@@ -155,6 +158,7 @@
   function renderControls() {
     const ready = state.connected && !state.busy, task = state.task, hasResult = task?.has_result;
     $("video-upload").disabled = !ready || Boolean(task);
+    $("processing-fps").disabled = !ready || Boolean(task);
     $("reset-video").disabled = !ready || !task;
     $("add-target").disabled = !ready || !task || hasResult || state.objects.length >= 20;
     $("delete-target").disabled = !ready || !state.selected || hasResult;
@@ -211,8 +215,8 @@
   $("video-upload").addEventListener("change", () => act("正在上传与抽帧…", async () => {
     const file = $("video-upload").files[0]; if (!file) return;
     $("video-upload").value = "";
-    if (file.size > 50 * 1024 * 1024) throw Error("视频超过 50 MiB，请裁剪后重新上传。");
-    const initial = await (await request("/api/tasks", {method:"POST", body:file, headers:{"Content-Type":"application/octet-stream"}})).json();
+    if (file.size > state.maxBytes) throw Error(`视频超过 ${state.maxBytes / 1024**2} MiB，请降低码率或裁剪后重新上传。`);
+    const initial = await (await request("/api/tasks?fps=" + $("processing-fps").value, {method:"POST", body:file, headers:{"Content-Type":"application/octet-stream"}})).json();
     state.frame = 0; state.corrections = []; state.draft = false; $("show-mask").checked = false;
     setTask(await waitJob(initial)); await loadFrame();
     message("视频已准备。新建目标，然后在画面上添加正点。");
@@ -297,7 +301,7 @@
   async function initialize() {
     let defaultService = "";
     try { defaultService = (await (await fetch("service.json")).json()).service || ""; } catch {}
-    if (["127.0.0.1", "localhost"].includes(location.hostname) && location.port === "7880") defaultService = location.origin;
+    if ((["127.0.0.1", "localhost"].includes(location.hostname) && location.port === "7880") || location.hostname.endsWith(".trycloudflare.com")) defaultService = location.origin;
     $("service-url").value = connection.service || defaultService;
     $("access-code").value = connection.key || "";
     renderControls();

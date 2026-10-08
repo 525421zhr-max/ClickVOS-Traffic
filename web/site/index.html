@@ -31,7 +31,8 @@
       <div class="workbench-layout">
         <div class="canvas-area">
           <div class="canvas-toolbar"><label class="upload-action" for="video-upload">选择交通视频<input id="video-upload" type="file" accept="video/mp4,video/webm,video/quicktime" disabled></label><span id="video-info">等待上传</span><button id="reset-video" class="quiet-button" disabled>换一段视频</button></div>
-          <div id="canvas-empty" class="canvas-empty"><img src="assets/icons/movie.svg" width="48" height="48" alt=""><h3>从一段交通视频开始</h3><p>连接服务后上传短视频，再在画面上添加提示点。</p><p class="small-note">最多 50 MiB、300 帧。上传前请确认素材授权。</p></div>
+          <div class="upload-settings"><label for="processing-fps">处理帧率<select id="processing-fps"><option value="preserve">保留全部帧</option><option value="30">最多 30 FPS</option><option value="15">最多 15 FPS</option></select></label><p id="upload-limits" class="small-note">最多 30 秒、100 MiB。降低处理帧率可能漏掉快速变化，原视频不修改。</p></div>
+          <div id="canvas-empty" class="canvas-empty"><img src="assets/icons/movie.svg" width="48" height="48" alt=""><h3>从一段交通视频开始</h3><p>连接服务后上传交通视频，再在画面上添加提示点。</p><p class="small-note">处理上限 2000 帧；分割前还会检查目标数和可用内存。上传前请确认素材授权。</p></div>
           <div class="canvas-stage" id="canvas-stage" hidden><canvas id="annotation-canvas" aria-label="视频帧与目标提示点。使用鼠标或触摸添加提示点，亦可使用下方坐标输入。"></canvas></div>
           <div class="frame-controls"><label for="frame-slider">帧 <output id="frame-number">0</output></label><input id="frame-slider" type="range" min="0" max="0" value="0" disabled><label class="mask-toggle"><input id="show-mask" type="checkbox" disabled>显示掩码</label></div>
           <p id="canvas-guidance" class="canvas-guidance">正点选择目标，负点排除不需要的区域。</p>

@@ -19,6 +19,29 @@ from pydantic import BaseModel, Field, ConfigDict
 from clickvos.config import load_config
 from clickvos.video_io import prepare_task
 
+OBJECT_FRAME_BUDGET = 2000
+
+
+def check_run_resources(task: dict, object_count: int, *, available_bytes: int | None = None, free_disk: int | None = None):
+    """Conservative admission estimate; cached SAM2 history still grows with objects."""
+    import shutil
+    frames = len(task["frames"])
+    if frames * object_count > OBJECT_FRAME_BUDGET:
+        raise HTTPException(422, f"当前有 {frames} 帧、{object_count} 个目标，超过本机资源预算。请减少目标，或上传时选择 30/15 FPS。")
+    if available_bytes is None:
+        memory = dict(line.split(":", 1) for line in Path("/proc/meminfo").read_text().splitlines())
+        available_bytes = int(memory["MemAvailable"].split()[0]) * 1024
+    # Reserve 1.5 GiB plus source-resolution intermediates; allowance per object/frame
+    # is deliberately larger than the pinned tiny model's low-resolution history.
+    reserve = 1536 * 1024**2 + task["width"] * task["height"] * (48 + object_count * 16)
+    estimate = frames * object_count * 2 * 1024**2 + 128 * 1024**2
+    if estimate + reserve > available_bytes:
+        raise HTTPException(503, "当前可用内存不足以安全运行这段视频。请减少目标、降低处理帧率或关闭占内存的软件后重试。")
+    free_disk = shutil.disk_usage(task["task_root"]).free if free_disk is None else free_disk
+    required_disk = frames * task["width"] * task["height"] * (object_count + 3) + 1024**3
+    if required_disk > free_disk:
+        raise HTTPException(503, "本机磁盘剩余空间不足，请释放空间或缩短视频后重试。")
+
 
 class Point(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -65,7 +88,8 @@ def create_app(config_path: Path, checkpoint: Path, token: str, static_dir: Path
     tasks: dict[str, dict] = {}
     jobs: dict[str, dict] = {}
     operation = threading.Lock()
-    max_bytes = min(config.video.max_upload_bytes, 50 * 1024 * 1024)
+    max_bytes = min(config.video.max_upload_bytes, 100 * 1024 * 1024)
+    size_message = f"视频超过 {max_bytes / 1024**2:g} MiB，请降低码率或裁剪后重新上传。"
 
     def authorize(request: Request) -> None:
         supplied = request.headers.get("authorization", "")
@@ -123,6 +147,9 @@ def create_app(config_path: Path, checkpoint: Path, token: str, static_dir: Path
                     "points": x["initial_points"]} for x in report.get("objects", [])]
         return {"id": task["id"], "width": task["width"], "height": task["height"],
                 "frame_count": len(task["frames"]), "fps": task["fps"],
+                "source_fps": task.get("source_fps", task["fps"]),
+                "duration_seconds": task.get("duration_seconds"),
+                "sampling": task.get("sampling", False),
                 "objects": task["objects"], "has_result": bool(report),
                 "has_draft": bool(task.get("draft")),
                 "undo_available": bool(task.get("added_points")),
@@ -136,7 +163,8 @@ def create_app(config_path: Path, checkpoint: Path, token: str, static_dir: Path
         import torch
         return {"ready": checkpoint.is_file() and torch.cuda.is_available(),
                 "busy": operation.locked(), "max_bytes": max_bytes,
-                "max_frames": config.video.max_frames, "mode": "single_operator"}
+                "max_frames": config.video.max_frames, "max_duration_seconds": config.video.max_duration_seconds,
+                "object_frame_budget": OBJECT_FRAME_BUDGET, "mode": "single_operator"}
 
     @app.get("/api/jobs/{job_id}", dependencies=auth)
     def job_status(job_id: str):
@@ -145,7 +173,7 @@ def create_app(config_path: Path, checkpoint: Path, token: str, static_dir: Path
         return dict(jobs[job_id])
 
     @app.post("/api/tasks", dependencies=auth)
-    async def upload(request: Request):
+    async def upload(request: Request, fps: Literal["preserve", "30", "15"] = "preserve"):
         if len(tasks) >= 32:
             raise HTTPException(503, "本次服务会话的任务数量已达上限，请联系服务提供者。")
         length = request.headers.get("content-length")
@@ -157,7 +185,7 @@ def create_app(config_path: Path, checkpoint: Path, token: str, static_dir: Path
             except ValueError:
                 raise HTTPException(422, "视频大小字段无效。") from None
             if size > max_bytes:
-                raise HTTPException(413, "视频超过 50 MiB，请裁剪后重新上传。")
+                raise HTTPException(413, size_message)
         require_idle()
         handoff = False
         incoming = config.tasks_root / ("upload-" + secrets.token_hex(12) + ".mp4")
@@ -167,7 +195,7 @@ def create_app(config_path: Path, checkpoint: Path, token: str, static_dir: Path
                 async for chunk in request.stream():
                     count += len(chunk)
                     if count > max_bytes:
-                        raise HTTPException(413, "视频超过 50 MiB，请裁剪后重新上传。")
+                        raise HTTPException(413, size_message)
                     stream.write(chunk)
             if count == 0:
                 raise HTTPException(422, "视频为空，请重新选择文件。")
@@ -175,10 +203,14 @@ def create_app(config_path: Path, checkpoint: Path, token: str, static_dir: Path
             def prepare():
                 layout, metadata, frames = prepare_task(incoming, config.tasks_root,
                     max_bytes=max_bytes, max_frames=config.video.max_frames,
-                    quality=config.video.jpeg_quality)
+                    quality=config.video.jpeg_quality, sample_fps=None if fps == "preserve" else float(fps),
+                    max_duration_seconds=config.video.max_duration_seconds, max_pixels=4096 * 2160)
+                processing_fps = metadata.fps if fps == "preserve" else min(metadata.fps, float(fps))
                 task = {"id": layout.root.name, "task_root": str(layout.root),
                         "frames": [str(x) for x in frames], "width": metadata.width,
-                        "height": metadata.height, "fps": metadata.fps, "objects": [],
+                        "height": metadata.height, "fps": processing_fps, "source_fps": metadata.fps,
+                        "duration_seconds": metadata.duration_seconds, "sampling": processing_fps < metadata.fps,
+                        "objects": [],
                         "added_points": [], "session_key": None}
                 tasks[task["id"]] = task
                 return summary(task)
@@ -203,6 +235,7 @@ def create_app(config_path: Path, checkpoint: Path, token: str, static_dir: Path
             raise HTTPException(422, "目标编号不能重复，每个目标至少需要一个正点。")
         for target in objects:
             check_points(target["points"], task)
+        check_run_resources(task, len(objects))
 
         def propagate():
             from clickvos import web_app as web
@@ -267,7 +300,7 @@ def create_app(config_path: Path, checkpoint: Path, token: str, static_dir: Path
 
         def apply():
             from clickvos import web_app as web
-            task.update(bundle=None, draft=None)
+            task.update(bundle=None, draft=None, report=None)
             outputs = web._apply_correction(task["session_key"], body.frame_index, points, body.object_id)
             task.update(report=outputs[1], bundle=None, draft=None)
             return summary(task)
@@ -281,6 +314,7 @@ def create_app(config_path: Path, checkpoint: Path, token: str, static_dir: Path
 
         def bundle():
             from clickvos import web_app as web
+            task["bundle"] = None
             output, _ = web._export_reviewed_task(task, task["session_key"], task["objects"], True, True)
             task["bundle"] = output
             return {"download": f"/api/tasks/{task_id}/bundle"}

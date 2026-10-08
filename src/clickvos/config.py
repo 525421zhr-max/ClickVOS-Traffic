@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,7 @@ class VideoConfig:
     max_frames: int
     frame_format: str
     jpeg_quality: int
+    max_duration_seconds: float | None = None
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,7 @@ class ModelConfig:
     device: str
     offload_video_to_cpu: bool
     offload_state_to_cpu: bool
+    lazy_video_frames: bool = False
 
 
 @dataclass(frozen=True)
@@ -73,6 +76,11 @@ def load_config(path: Path) -> AppConfig:
         raise _invalid("max_upload_bytes 必须大于 0")
     if config.video.max_frames <= 0:
         raise _invalid("max_frames 必须大于 0")
+    duration = config.video.max_duration_seconds
+    if duration is not None and (type(duration) not in (int, float) or not math.isfinite(duration) or duration <= 0):
+        raise _invalid("max_duration_seconds 必须是有限正数")
+    if type(config.model.lazy_video_frames) is not bool or (config.model.lazy_video_frames and not config.model.offload_video_to_cpu):
+        raise _invalid("按需读取要求 lazy_video_frames 为布尔值且 offload_video_to_cpu 开启")
     if config.video.frame_format != "jpg":
         raise _invalid("当前只支持 jpg 抽帧格式")
     if not 2 <= config.video.jpeg_quality <= 31:

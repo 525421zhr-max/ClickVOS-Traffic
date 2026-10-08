@@ -219,6 +219,11 @@ def build_project_manifest(task_root: Path, result: dict[str, Any], output: Path
         ),
         "overlap_events": result.get("overlap_events", []),
     }
+    if "processing" in task_metadata:
+        payload["processing"] = task_metadata["processing"]
+        source = task_metadata.get("source_video", {})
+        payload["source_video"] = {key: source.get(key) for key in
+                                   ("width", "height", "fps", "frame_count", "duration_seconds", "codec")}
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return output

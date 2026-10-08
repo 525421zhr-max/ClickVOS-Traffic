@@ -76,6 +76,8 @@ def main():
     if not (args.static_dir / "index.html").is_file() or not args.checkpoint.is_file():
         raise SystemExit("Website files or model checkpoint missing.")
     config = json.loads((ROOT / "configs/default.json").read_text())
+    config["video"].update(max_frames=2000, max_upload_bytes=100 * 1024**2, max_duration_seconds=30)
+    config["model"]["lazy_video_frames"] = True
     config["task"]["tasks_root"] = str(ROOT / "outputs/tasks/unified-site-v1/tasks")
     config_path = RUNTIME / "config.json"
     config_path.write_text(json.dumps(config))

@@ -27,7 +27,7 @@ def service(tmp_path, monkeypatch):
         root.mkdir(exist_ok=True)
         frame = root / "00000.jpg"
         frame.write_bytes(b"frame")
-        return SimpleNamespace(root=root), SimpleNamespace(width=10, height=10, fps=10), [frame]
+        return SimpleNamespace(root=root), SimpleNamespace(width=10, height=10, fps=10, duration_seconds=.1), [frame]
     monkeypatch.setattr("clickvos.site_api.prepare_task", prepare)
     token = "t" * 32
     client = TestClient(create_app(config_path, tmp_path / "missing.pt", token, static, ("https://example.test",)))
@@ -101,3 +101,38 @@ def test_task_scope_export_guard_and_coordinate_validation(service):
         assert client.post(f"/api/tasks/{task}/run", json={"objects": objects}, headers=headers).status_code == 422
     assert client.post(f"/api/tasks/{task}/correct", json={"object_id": 1, "frame_index": 0, "points": [positive]}, headers=headers).status_code == 422
     assert client.post(f"/api/tasks/{task}/review", json={"action": "preview", "object_id": 1}, headers=headers).status_code == 409
+
+
+@pytest.mark.parametrize("operation", ["run", "correct"])
+def test_failed_update_cannot_export_previous_or_partial_result(service, monkeypatch, operation):
+    from clickvos import web_app
+    from clickvos import site_api
+    client, headers, _ = service
+    original_prepare = site_api.prepare_task
+    def two_frames(*args, **kwargs):
+        layout, metadata, frames = original_prepare(*args, **kwargs)
+        return layout, metadata, frames * 2
+    monkeypatch.setattr(site_api, "prepare_task", two_frames)
+    task = upload_task(client, headers)
+    target = {"object_id": 1, "category": "vehicle", "points": [{"x": 2, "y": 2, "positive": True}]}
+    report = {"objects": [{"object_id": 1, "category": "vehicle", "initial_points": target["points"]}]}
+    monkeypatch.setattr(web_app, "_run_with_review_history", lambda *args: [None, report, None, "session", None, None, None, "overlay"])
+    def wait_job(response):
+        assert response.status_code == 200
+        for _ in range(100):
+            job = client.get("/api/jobs/" + response.json()["job_id"], headers=headers).json()
+            if job["status"] != "running":
+                return job
+            time.sleep(.01)
+        raise AssertionError("job timeout")
+    assert wait_job(client.post(f"/api/tasks/{task}/run", json={"objects": [target]}, headers=headers))["status"] == "succeeded"
+    assert client.get(f"/api/tasks/{task}", headers=headers).json()["has_result"]
+    def fail(*args):
+        raise RuntimeError("interrupted while writing masks")
+    monkeypatch.setattr(web_app, "_run_with_review_history", fail)
+    monkeypatch.setattr(web_app, "_apply_correction", fail)
+    body = {"objects": [target]} if operation == "run" else {"object_id": 1, "frame_index": 1, "points": target["points"]}
+    assert wait_job(client.post(f"/api/tasks/{task}/{operation}", json=body, headers=headers))["status"] == "failed"
+    assert not client.get(f"/api/tasks/{task}", headers=headers).json()["has_result"]
+    assert client.post(f"/api/tasks/{task}/export", headers=headers).status_code == 409
+    assert client.get(f"/api/tasks/{task}/bundle", headers=headers).status_code == 409

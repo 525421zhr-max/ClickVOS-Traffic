@@ -4,6 +4,14 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $runtime = Join-Path $repo 'outputs/tasks/unified-site-v1/runtime'
 $cloudflare = Join-Path $runtime 'cloudflared.exe'
 $pidFile = Join-Path $runtime 'tunnel-pid.txt'
+$keeperFile = Join-Path $runtime 'wsl-keeper-pid.txt'
+function Get-WorkbenchKeeper {
+    if (!(Test-Path -LiteralPath $keeperFile)) { return $null }
+    $savedPid = [int](Get-Content -LiteralPath $keeperFile)
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $savedPid" -ErrorAction SilentlyContinue
+    if ($process -and $process.Name -eq 'wsl.exe' -and $process.CommandLine -match 'Ubuntu-24\.04.*--\s+sleep\s+infinity') { return $process }
+    return $null
+}
 Push-Location $repo
 try {
     if ($Stop) {
@@ -13,7 +21,15 @@ try {
             Remove-Item -LiteralPath $pidFile
         }
         wsl -d Ubuntu-24.04 -- /home/clickvos/.venvs/clickvos/bin/python scripts/manage_unified_site.py stop
+        $keeper = Get-WorkbenchKeeper
+        if ($keeper) { Stop-Process -Id $keeper.ProcessId }
+        if (Test-Path -LiteralPath $keeperFile) { Remove-Item -LiteralPath $keeperFile }
         return
+    }
+    New-Item -ItemType Directory -Force -Path $runtime | Out-Null
+    if (!(Get-WorkbenchKeeper)) {
+        $keeper = Start-Process -FilePath wsl.exe -ArgumentList @('-d','Ubuntu-24.04','--','sleep','infinity') -WindowStyle Hidden -PassThru
+        $keeper.Id | Set-Content -LiteralPath $keeperFile
     }
     wsl -d Ubuntu-24.04 -- /home/clickvos/.venvs/clickvos/bin/python scripts/manage_unified_site.py start
     if ($LASTEXITCODE -ne 0) { throw 'Cannot start local workbench.' }

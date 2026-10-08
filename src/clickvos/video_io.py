@@ -166,12 +166,16 @@ def extract_frames(
     quality: int = 2,
     max_bytes: int = DEFAULT_MAX_VIDEO_BYTES,
     max_frames: int = DEFAULT_MAX_FRAMES,
+    sample_fps: float | None = None,
+    preserve_frames: bool = False,
 ) -> list[Path]:
     source = validate_video(video, max_bytes=max_bytes)
     if not 2 <= quality <= 31:
         raise ValueError("JPEG quality must be between 2 and 31")
     if max_frames < 1:
         raise ValueError("max_frames must be positive")
+    if sample_fps is not None and (not math.isfinite(sample_fps) or sample_fps <= 0):
+        raise ValueError("sample_fps must be finite and positive")
     frames_dir.mkdir(parents=True, exist_ok=True)
     if any(frames_dir.iterdir()):
         raise VideoIOError(ErrorCode.TASK_CONFLICT, "任务目录已有抽帧结果，请更换任务编号。", str(frames_dir))
@@ -179,6 +183,8 @@ def extract_frames(
         subprocess.run(
             [
                 "ffmpeg", "-v", "error", "-i", str(source),
+                *(["-vf", f"fps={sample_fps}"] if sample_fps is not None else []),
+                *(["-fps_mode", "passthrough"] if preserve_frames and sample_fps is None else []),
                 "-q:v", str(quality), "-frames:v", str(max_frames + 1),
                 str(frames_dir / "%05d.jpg"),
             ],
@@ -207,15 +213,33 @@ def prepare_task(
     max_bytes: int = DEFAULT_MAX_VIDEO_BYTES,
     max_frames: int = DEFAULT_MAX_FRAMES,
     quality: int = 2,
+    sample_fps: float | None = None,
+    max_duration_seconds: float | None = None,
+    max_pixels: int | None = None,
 ) -> tuple[TaskLayout, VideoMetadata, list[Path]]:
     metadata = probe_video(video, max_bytes=max_bytes)
     if max_frames < 1:
         raise ValueError("max_frames must be positive")
-    if metadata.frame_count is not None and metadata.frame_count > max_frames:
+    if max_duration_seconds is not None:
+        if not math.isfinite(max_duration_seconds) or max_duration_seconds <= 0:
+            raise ValueError("max_duration_seconds must be finite and positive")
+        if metadata.duration_seconds is None or metadata.duration_seconds <= 0:
+            raise VideoIOError(ErrorCode.VIDEO_INSPECTION_FAILED, "无法确认视频时长，请重新导出视频再上传。")
+        if metadata.duration_seconds > max_duration_seconds:
+            raise VideoIOError(ErrorCode.VIDEO_TOO_LONG,
+                f"视频时长 {metadata.duration_seconds:.2f} 秒，超过 {max_duration_seconds:g} 秒上限，请裁剪后上传。")
+    if max_pixels is not None and metadata.width * metadata.height > max_pixels:
+        raise VideoIOError(ErrorCode.VIDEO_RESOLUTION_TOO_LARGE, "视频分辨率超过当前服务上限，请按 4K 或更低分辨率导出。")
+    if sample_fps is not None and (not math.isfinite(sample_fps) or sample_fps <= 0):
+        raise ValueError("sample_fps must be finite and positive")
+    effective_fps = min(sample_fps, metadata.fps) if sample_fps is not None else metadata.fps
+    sampling = sample_fps is not None and sample_fps < metadata.fps
+    estimated_frames = math.ceil(metadata.duration_seconds * effective_fps) if sampling and metadata.duration_seconds else metadata.frame_count
+    if estimated_frames is not None and estimated_frames > max_frames:
         raise VideoIOError(
             ErrorCode.VIDEO_TOO_MANY_FRAMES,
-            f"视频超过 {max_frames} 帧限制，请裁剪后重新上传。",
-            f"reported={metadata.frame_count}, limit={max_frames}",
+            f"视频预计处理 {estimated_frames} 帧（原帧率约 {metadata.fps:.2f} FPS），超过 {max_frames} 帧限制。请选择较低处理帧率或裁剪。",
+            f"estimated={estimated_frames}, limit={max_frames}",
         )
     layout = create_task_layout(tasks_root, task_id)
     record = {
@@ -227,9 +251,11 @@ def prepare_task(
     }
     _write_task_metadata(layout.metadata, record)
     try:
-        frames = extract_frames(
-            video, layout.frames, quality=quality, max_bytes=max_bytes, max_frames=max_frames
-        )
+        options = {"sample_fps": effective_fps} if sampling else {}
+        if max_duration_seconds is not None and not sampling:
+            options["preserve_frames"] = True
+        frames = extract_frames(video, layout.frames, quality=quality, max_bytes=max_bytes,
+                                max_frames=max_frames, **options)
     except Exception as exc:
         record["status"] = "frame_extraction_failed"
         record["extracted_frame_count"] = len(list(layout.frames.glob("*.jpg")))
@@ -242,6 +268,11 @@ def prepare_task(
         raise
     record["status"] = "frames_extracted"
     record["extracted_frame_count"] = len(frames)
+    if sample_fps is not None or max_duration_seconds is not None:
+        record["source_video"] = asdict(metadata)
+        record["processing"] = {"mode": "sampled" if sampling else "all_frames", "fps": effective_fps,
+                                "source_fps": metadata.fps, "requested_fps": sample_fps}
+        record["video"].update(fps=effective_fps, frame_count=len(frames))
     _write_task_metadata(layout.metadata, record)
     return layout, metadata, frames
 

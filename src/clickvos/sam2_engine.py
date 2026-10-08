@@ -276,11 +276,15 @@ class Sam2Session:
         self.frames = frames
         with Image.open(frames[0]) as first_frame:
             self.width, self.height = first_frame.size
-        self.state = predictor.init_state(
-            str(frames[0].parent),
-            offload_video_to_cpu=config.model.offload_video_to_cpu,
-            offload_state_to_cpu=config.model.offload_state_to_cpu,
-        )
+        if config.model.lazy_video_frames:
+            from clickvos.lazy_frames import init_bounded_state
+            self.state = init_bounded_state(predictor, config, frames)
+        else:
+            self.state = predictor.init_state(
+                str(frames[0].parent),
+                offload_video_to_cpu=config.model.offload_video_to_cpu,
+                offload_state_to_cpu=config.model.offload_state_to_cpu,
+            )
         self.objects: dict[int, str] = {}
 
     def _autocast(self) -> Any:

@@ -27,6 +27,10 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .5; }
 .workspace-status[data-state="error"] { color: #a22c25; border-color: #d4a19d; background: #fff1ef; }
 .workbench-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 2rem; align-items: start; }
 .canvas-area { min-width: 0; }
+.upload-settings { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.upload-settings label { min-width: 145px; }
+.upload-settings .small-note { margin: 0; }
+@media (max-width: 760px) { .upload-settings { align-items: start; flex-direction: column; gap: .5rem; } .upload-settings label { width: 100%; } }
 .canvas-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; padding-bottom: 1rem; }
 .upload-action { display: inline-flex; align-items: center; min-height: 44px; padding: .55rem .85rem; background: var(--ink); color: var(--button-text); border-radius: 4px; cursor: pointer; }
 .upload-action input { width: 1px; height: 1px; position: absolute; opacity: 0; }
