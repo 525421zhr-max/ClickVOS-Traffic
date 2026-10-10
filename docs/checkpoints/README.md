@@ -65,5 +65,8 @@
 - [DEV-33：十人试用材料准备](DEV-33-user-trial-preparation.md)（2026-10-06）
 - [DEV-34：Codex Sites 作品展示页](DEV-34-sites-portfolio.md)（2026-10-07）
 - [DEV-35：设计技能安装与作品页精修](DEV-35-design-skill-polish.md)（2026-10-07）
+- [DEV-36：统一网站与本机 GPU 工作台](DEV-36-unified-site-workbench.md)（2026-10-07）
+- [DEV-37：约 30 秒上传与按需读取](DEV-37-long-video-workbench.md)（2026-10-08）
+- [DEV-38：部署核查与软著材料准备](DEV-38-release-preparation.md)（2026-10-10）
 
 新记录从 [模板](WEEKLY-TEMPLATE.md) 复制。实验数字必须能回到命令输出或原始文件。

@@ -109,7 +109,7 @@ python -m clickvos.export bundle outputs/tasks/<task-id>
 - 后续单帧诊断按固定顺序添加 1/2/3 个背景负点，自行车 IoU 分别为 0.6608/0.6563/0.6451，仍未达标。误覆盖减少的同时细结构漏分增加，因此停止在单帧阶段，保留原失败结果。这是利用真值辅助的提示验证，不是用户试用成绩。
 - 候选确认现在只恢复本次重新出现到下一次重新出现之间的掩码，不会一次放行后续所有候选；该边界已通过工程回归，尚无真实二次重现视频验证。
 - 首帧预览、补点/撤销记录、重新传播与导出通过两帧 GPU 工程回归；这次没有新增质量评估。预览不覆盖已有视频结果，尚未应用的补点会提醒先传播再导出。
-- 最近一次自动化测试结果为 `122 passed`（2026-10-05）；新增预览隔离、日志保护、跨任务状态和导出检查。
+- 最近一次全量自动化测试记录为 `152 passed`（2026-10-08，DEV-37）；2026-10-10 的部署与文档准备另执行配置、任务存储和导出定向检查，`18 passed`，不替代全量测试或容器验收。
 
 详细数据在 [`docs/research/results/`](docs/research/results/)，对应的命令、环境和问题记录在 [`docs/checkpoints/`](docs/checkpoints/)。
 
@@ -142,6 +142,8 @@ docs/operations/    环境、导出和仓库说明
 ```
 
 接下来的工作见 [`docs/roadmap.md`](docs/roadmap.md)。标注导出格式见 [`docs/operations/export-format.md`](docs/operations/export-format.md)。
+
+软件使用说明书工作稿、功能证据表、部署核查和软著/结题准备清单见 [`docs/release/`](docs/release/README.md)。材料对应现有应用版本，Docker 实机、云 GPU 与正式申报仍待完成。
 
 ## 许可说明
 

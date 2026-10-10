@@ -2,17 +2,21 @@
 
 当前容器方案用于运行完整的 Python、PyTorch、SAM2 和 Gradio 应用。模型权重不写入镜像，也不上传 GitHub；启动时从宿主机目录只读挂载。
 
+2026-10-10 复核：现有 Dockerfile 启动的是原 Gradio，没有复制 `web/site`，不包含统一网站网关的运行配置。Windows/WSL 中仍未找到 Docker 命令；本轮完成 YAML/挂载/入口与依赖审查，未构建或运行镜像。详细核对及独立环境验收清单见 [部署准备记录](../release/deployment-readiness.md)。
+
 ## 前置条件
 
 - Linux 或 WSL 2 主机
 - NVIDIA 驱动
-- Docker Engine 与 Compose 插件
+- Docker Engine 与 Compose 2.30.0 或更新版本（当前使用 `gpus` 属性，见 [Docker 官方说明](https://docs.docker.com/reference/compose-file/services/#gpus)）
 - NVIDIA Container Toolkit，容器内必须能够执行 `nvidia-smi`
 - 与配置文件摘要一致的 `sam2.1_hiera_tiny.pt`
 
 ## 本地构建和启动
 
 复制环境变量示例并填写权重所在目录：
+
+在独立检出目录进行容器验收，使用空输出目录；不要让测试容器挂载当前正式试用的 outputs。以下命令是待执行步骤，不代表本机已经构建通过。
 
 ```bash
 cp .env.example .env

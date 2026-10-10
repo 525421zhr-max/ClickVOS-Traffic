@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "source_checkpoint": "DEV-38",
+  "date": "2026-10-10",
+  "application_commit": "60f72860f1968d3ce714d728eead90bac7dc2a3a",
+  "application_version": "0.1.0",
+  "status": "documentation_and_static_deployment_audit_complete",
+  "ground_truth_available": false,
+  "quality_metrics_reported": [],
+  "gpu_inference_runs": 0,
+  "trial_records_modified": false,
+  "application_code_modified": false,
+  "focused_tests": {
+    "files": ["tests/test_config.py", "tests/test_task_store.py", "tests/test_export.py"],
+    "passed": 18,
+    "seconds": 0.74,
+    "full_suite_rerun": false
+  },
+  "environment_checks": {
+    "pip_check_passed": true,
+    "python": "3.12.3",
+    "torch": "2.11.0+cu128",
+    "torchvision": "0.26.0+cu128",
+    "gradio": "6.27.0",
+    "fastapi": "0.141.1",
+    "uvicorn": "0.53.0",
+    "sam2_commit_matches": true,
+    "checkpoint_sha256_matches": true
+  },
+  "deployment": {
+    "windows_docker_cli_found": false,
+    "wsl_docker_cli_found": false,
+    "yaml_parse_passed": true,
+    "compose_cli_validation_run": false,
+    "host_port_loopback_only": true,
+    "model_mount_read_only": true,
+    "outputs_persistent_mount": true,
+    "existing_image_entrypoint": "clickvos.web_app",
+    "unified_website_in_image": false,
+    "image_built": false,
+    "container_gpu_validated": false,
+    "cloud_gpu_validated": false
+  },
+  "deliverables": {
+    "software_manual_pages": 7,
+    "preparation_report_pages": 4,
+    "pdf_pages_visually_checked": 11,
+    "source_review_files": 21,
+    "source_review_lines": 5188,
+    "source_review_bytes": 248151,
+    "source_review_commit": "60f72860f1968d3ce714d728eead90bac7dc2a3a",
+    "registration_submitted": false,
+    "final_registration_materials_complete": false
+  },
+  "local_evidence_root": "outputs/tasks/dev38-release-preparation/",
+  "limitations": [
+    "Static YAML and dependency checks do not establish a successful container build.",
+    "Existing container configuration targets the original Gradio application only.",
+    "Source review archive excludes third-party assets and is not an installable distribution or final registration submission.",
+    "Registration identity, dates, final screenshots, cloud runtime evidence and real trial statistics remain pending."
+  ]
+}
